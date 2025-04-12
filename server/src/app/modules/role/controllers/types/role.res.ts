@@ -10,4 +10,10 @@ export class RoleRes {
 
   @ApiProperty()
   permissions: PermissionRes[];
+
+  @ApiProperty()
+  created_at: Date;
+
+  @ApiProperty()
+  updated_at: Date;
 }

@@ -14,7 +14,7 @@ export class CreateOrderInput {
   status?: OrderStatus;
   address_id?: number;
   new_address?: CreateAddressInput;
-  promotion_id?: number;
+  promotion_ids?: number[];
   user_id?: number;
   payment_method: PaymentMethod;
 }

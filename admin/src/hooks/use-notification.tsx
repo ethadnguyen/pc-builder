@@ -8,6 +8,7 @@ import React, {
   useCallback,
 } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { useAuth } from './use-auth';
 
 export interface OrderNotification {
   id: number;
@@ -70,6 +71,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 }) => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const { isAuthenticated } = useAuth();
 
   useEffect(() => {
     try {
@@ -94,18 +96,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   }, [notifications]);
 
   useEffect(() => {
-    const SOCKET_URL =
-      process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3003';
-    const newSocket = io(`${SOCKET_URL}/admin`, {
-      withCredentials: true,
-    });
+    if (isAuthenticated) {
+      const SOCKET_URL =
+        process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3003';
+      const newSocket = io(`${SOCKET_URL}/admin`, {
+        withCredentials: true,
+      });
 
-    setSocket(newSocket);
+      setSocket(newSocket);
 
-    return () => {
-      newSocket.disconnect();
-    };
-  }, []);
+      return () => {
+        newSocket.disconnect();
+      };
+    }
+  }, [isAuthenticated]);
 
   useEffect(() => {
     if (!socket) return;

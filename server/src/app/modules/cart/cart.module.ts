@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { JwtModule, JwtService } from '@nestjs/jwt';
 import { CartController } from './controllers/cart.controller';
@@ -10,6 +10,7 @@ import { ProductRepository } from '../products/repositories/products.repositorie
 import { Product } from '../products/entities/products.entity';
 import { ConfigService } from '@nestjs/config';
 import { ConfigModule } from '@nestjs/config';
+import { ProductModule } from '../products/products.module';
 
 @Module({
   imports: [
@@ -24,9 +25,10 @@ import { ConfigModule } from '@nestjs/config';
       }),
       inject: [ConfigService],
     }),
+    forwardRef(() => ProductModule),
   ],
   controllers: [CartController],
   providers: [CartService, CartRepository, ProductRepository, JwtService],
-  exports: [CartService],
+  exports: [CartService, CartRepository],
 })
 export class CartModule {}

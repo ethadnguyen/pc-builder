@@ -21,7 +21,6 @@ import {
   User,
   MapPin,
   ShoppingBag,
-  CreditCard,
   Heart,
   Settings,
   LogOut,
@@ -59,7 +58,7 @@ export default function ProfilePage() {
 
   // Lấy chữ cái đầu của tên người dùng cho avatar
   const getInitials = (name: string | undefined) => {
-    if (!name) return 'U'; // Trả về 'U' (User) nếu không có tên
+    if (!name) return 'U';
 
     return name
       .split(' ')
@@ -67,23 +66,6 @@ export default function ProfilePage() {
       .join('')
       .toUpperCase()
       .substring(0, 2);
-  };
-
-  // Format ngày tháng
-  const formatDate = (dateString: string | undefined) => {
-    if (!dateString) return '--/--/----'; // Trả về định dạng mặc định nếu không có ngày
-
-    try {
-      const date = new Date(dateString);
-      return new Intl.DateTimeFormat('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-      }).format(date);
-    } catch (error) {
-      console.error('Lỗi khi format ngày tháng:', error);
-      return '--/--/----';
-    }
   };
 
   if (loading) {
@@ -189,16 +171,6 @@ export default function ProfilePage() {
                   <Link href='/profile/wishlist'>
                     <Heart className='mr-2 h-4 w-4' />
                     Sản phẩm yêu thích
-                  </Link>
-                </Button>
-                <Button
-                  variant='ghost'
-                  className='w-full justify-start'
-                  asChild
-                >
-                  <Link href='/profile/payment'>
-                    <CreditCard className='mr-2 h-4 w-4' />
-                    Phương thức thanh toán
                   </Link>
                 </Button>
                 <Button

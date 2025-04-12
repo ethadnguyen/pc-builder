@@ -9,4 +9,10 @@ export class PermissionRes {
 
   @ApiProperty()
   description: string;
+
+  @ApiProperty()
+  created_at: Date;
+
+  @ApiProperty()
+  updated_at: Date;
 }

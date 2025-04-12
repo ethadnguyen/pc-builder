@@ -24,6 +24,8 @@ import { BrandModule } from './modules/brand/brand.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { ConfigurationModule } from './modules/configuration/configuration.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { WishlistModule } from './modules/wishlist/wishlist.module';
 
 @Module({
   imports: [
@@ -50,7 +52,9 @@ import { ScheduleModule } from '@nestjs/schedule';
     PromotionModule,
     CartModule,
     PaymentModule,
+    DashboardModule,
     CloudinaryModule,
+    WishlistModule,
   ],
   controllers: [AppController],
   providers: [

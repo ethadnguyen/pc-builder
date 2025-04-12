@@ -40,7 +40,7 @@ export class PermissionRepository {
     return newPermission;
   }
 
-  async update(id: number, permission: Permission) {
+  async update(id: number, permission: Partial<Permission>) {
     await this.repo.update(id, permission);
     return await this.findById(id);
   }

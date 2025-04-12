@@ -42,6 +42,17 @@ export class AuthController {
     return await this.authService.validate(request);
   }
 
+  @Public()
+  @Post('admin/login')
+  @HttpCode(200)
+  @ApiResponse({
+    status: 200,
+    type: LoginRes,
+  })
+  async adminLogin(@Body() request: LoginReq) {
+    return await this.authService.validateAdmin(request);
+  }
+
   @Post('logout')
   @HttpCode(200)
   @ApiResponse({

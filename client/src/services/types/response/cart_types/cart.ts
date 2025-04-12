@@ -1,3 +1,5 @@
+import { PromotionRes } from '../promotion_types/promotion.res';
+
 export interface CartRes {
   items: CartItemRes[];
   total: number;
@@ -17,5 +19,6 @@ export interface CartItemRes {
     images: string[];
     is_sale?: boolean;
     sale_price?: number;
+    promotions?: PromotionRes[];
   };
 }

@@ -7,9 +7,8 @@ import {
   PaginationEllipsis,
   PaginationItem,
   PaginationLink,
-  PaginationNext,
-  PaginationPrevious,
 } from '@/components/ui/pagination';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface CustomPaginationProps {
   totalPages: number;
@@ -134,23 +133,33 @@ const CustomPagination: React.FC<CustomPaginationProps> = ({
   return (
     <Pagination className={className}>
       <PaginationContent>
-        <PaginationItem>
-          {totalPages > 1 && currentPage > 1 && (
-            <PaginationPrevious
+        {totalPages > 1 && currentPage > 1 && (
+          <PaginationItem>
+            <PaginationLink
               onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-            />
-          )}
-        </PaginationItem>
+              className='flex items-center'
+              size='icon'
+            >
+              <ChevronLeft className='h-4 w-4' />
+            </PaginationLink>
+          </PaginationItem>
+        )}
+
         {renderPageNumbers()}
-        <PaginationItem>
-          {totalPages > 1 && currentPage < totalPages && (
-            <PaginationNext
+
+        {totalPages > 1 && currentPage < totalPages && (
+          <PaginationItem>
+            <PaginationLink
               onClick={() =>
                 onPageChange(Math.min(totalPages, currentPage + 1))
               }
-            />
-          )}
-        </PaginationItem>
+              className='flex items-center'
+              size='icon'
+            >
+              <ChevronRight className='h-4 w-4' />
+            </PaginationLink>
+          </PaginationItem>
+        )}
       </PaginationContent>
     </Pagination>
   );

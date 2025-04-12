@@ -85,6 +85,18 @@ export default function PromotionDialog({
     'categories'
   );
 
+  // Thêm state phân trang
+  const [productPage, setProductPage] = useState(1);
+  const [categoryPage, setCategoryPage] = useState(1);
+  const [productPageSize] = useState(20);
+  const [categoryPageSize] = useState(20);
+  const [hasMoreProducts, setHasMoreProducts] = useState(true);
+  const [hasMoreCategories, setHasMoreCategories] = useState(true);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [totalCategories, setTotalCategories] = useState(0);
+  const [isLoadingMoreProducts, setIsLoadingMoreProducts] = useState(false);
+  const [isLoadingMoreCategories, setIsLoadingMoreCategories] = useState(false);
+
   const form = useForm<FormValues>({
     resolver: zodResolver(promotionSchema),
     defaultValues: {
@@ -103,22 +115,17 @@ export default function PromotionDialog({
     },
   });
 
-  // Hàm trợ giúp để thêm tất cả sản phẩm từ một danh mục vào product_ids
   const addProductsFromCategory = (categoryId: number) => {
-    // Tìm tất cả sản phẩm thuộc danh mục này
     const productsInCategory = products.filter((product) =>
       product.categories?.some((c) => Number(c.id) === categoryId)
     );
 
     if (productsInCategory.length > 0) {
-      // Lấy ID của tất cả sản phẩm trong danh mục
       const productIdsInCategory = productsInCategory.map((p) => Number(p.id));
 
-      // Lấy danh sách product_ids hiện tại
       const productIdsValue = form.getValues('product_ids');
       const currentProductIds = productIdsValue ? [...productIdsValue] : [];
 
-      // Thêm các sản phẩm chưa có trong danh sách
       const newProductIds = [...currentProductIds];
       productIdsInCategory.forEach((id) => {
         if (!newProductIds.some((existingId) => Number(existingId) === id)) {
@@ -126,33 +133,6 @@ export default function PromotionDialog({
         }
       });
 
-      // Cập nhật giá trị product_ids
-      form.setValue('product_ids', newProductIds);
-    }
-  };
-
-  // Hàm trợ giúp để xóa tất cả sản phẩm từ một danh mục khỏi product_ids
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const removeProductsFromCategory = (categoryId: number) => {
-    // Tìm tất cả sản phẩm thuộc danh mục này
-    const productsInCategory = products.filter((product) =>
-      product.categories?.some((c) => Number(c.id) === categoryId)
-    );
-
-    if (productsInCategory.length > 0) {
-      // Lấy ID của tất cả sản phẩm trong danh mục
-      const productIdsInCategory = productsInCategory.map((p) => Number(p.id));
-
-      // Lấy danh sách product_ids hiện tại
-      const productIdsValue = form.getValues('product_ids');
-      const currentProductIds = productIdsValue ? [...productIdsValue] : [];
-
-      // Loại bỏ các sản phẩm thuộc danh mục này
-      const newProductIds = currentProductIds.filter(
-        (id) => !productIdsInCategory.includes(Number(id))
-      );
-
-      // Cập nhật giá trị product_ids
       form.setValue('product_ids', newProductIds);
     }
   };
@@ -198,57 +178,123 @@ export default function PromotionDialog({
     }
   }, [promotion, open, form]);
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (page = 1) => {
     try {
-      setIsLoadingProducts(true);
+      if (page === 1) {
+        setIsLoadingProducts(true);
+      } else {
+        setIsLoadingMoreProducts(true);
+      }
+
       const result = await fetchAllProducts({
-        size: 1000,
+        page,
+        size: productPageSize,
         is_active: true,
       });
 
       if (result?.data?.products && Array.isArray(result.data.products)) {
-        setProducts(result.data.products);
-        console.log('Products fetched successfully:', result.data.products);
+        if (page === 1) {
+          setProducts(result.data.products);
+        } else {
+          setProducts((prev) => [...prev, ...result.data.products]);
+        }
+
+        setTotalProducts(result.data.total_count || 0);
+        setHasMoreProducts(
+          result.data.products.length > 0 &&
+            page * productPageSize < (result.data.total_count || 0)
+        );
       } else {
-        setProducts([]);
+        if (page === 1) {
+          setProducts([]);
+        }
+        setHasMoreProducts(false);
         console.error('Invalid products data:', result);
       }
     } catch (error) {
       console.error('Error fetching products:', error);
-      setProducts([]);
+      if (page === 1) {
+        setProducts([]);
+      }
+      setHasMoreProducts(false);
       toast({
         title: 'Thất bại',
         description: 'Không thể tải danh sách sản phẩm',
         variant: 'destructive',
       });
     } finally {
-      setIsLoadingProducts(false);
+      if (page === 1) {
+        setIsLoadingProducts(false);
+      } else {
+        setIsLoadingMoreProducts(false);
+      }
     }
   };
 
-  const fetchCategories = async () => {
+  const fetchCategories = async (page = 1) => {
     try {
-      setIsLoadingCategories(true);
-      const result = await fetchAllCategories();
+      if (page === 1) {
+        setIsLoadingCategories(true);
+      } else {
+        setIsLoadingMoreCategories(true);
+      }
+
+      const result = await fetchAllCategories({
+        page,
+        size: categoryPageSize,
+      });
 
       if (result?.data?.categories && Array.isArray(result.data.categories)) {
-        setCategories(result.data.categories);
-        console.log('Categories fetched successfully:', result.data.categories);
+        if (page === 1) {
+          setCategories(result.data.categories);
+        } else {
+          setCategories((prev) => [...prev, ...result.data.categories]);
+        }
+
+        // Cập nhật thông tin phân trang
+        setTotalCategories(result.data.total_count || 0);
+        setHasMoreCategories(
+          result.data.categories.length > 0 &&
+            page * categoryPageSize < (result.data.total_count || 0)
+        );
       } else {
-        setCategories([]);
+        if (page === 1) {
+          setCategories([]);
+        }
+        setHasMoreCategories(false);
         console.error('Invalid categories data:', result);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
-      setCategories([]);
+      if (page === 1) {
+        setCategories([]);
+      }
+      setHasMoreCategories(false);
       toast({
         title: 'Thất bại',
         description: 'Không thể tải danh sách danh mục',
         variant: 'destructive',
       });
     } finally {
-      setIsLoadingCategories(false);
+      if (page === 1) {
+        setIsLoadingCategories(false);
+      } else {
+        setIsLoadingMoreCategories(false);
+      }
     }
+  };
+
+  // Thêm hàm để tải thêm dữ liệu
+  const loadMoreProducts = () => {
+    const nextPage = productPage + 1;
+    setProductPage(nextPage);
+    fetchProducts(nextPage);
+  };
+
+  const loadMoreCategories = () => {
+    const nextPage = categoryPage + 1;
+    setCategoryPage(nextPage);
+    fetchCategories(nextPage);
   };
 
   const onSubmit = async (values: FormValues) => {
@@ -279,19 +325,24 @@ export default function PromotionDialog({
         discount_value: Number(values.discount_value),
       };
 
+      const hasSelectedProducts =
+        Array.isArray(values.product_ids) && values.product_ids.length > 0;
+      const hasSelectedCategories =
+        Array.isArray(values.category_ids) && values.category_ids.length > 0;
+
       const payload = {
         ...processedValues,
         start_date: values.start_date.toISOString(),
         end_date: values.end_date.toISOString(),
-        product_ids: Array.isArray(values.product_ids)
-          ? values.product_ids.map((id) => Number(id))
-          : [],
-        category_ids: Array.isArray(values.category_ids)
-          ? values.category_ids.map((id) => Number(id))
-          : [],
+        product_ids:
+          hasSelectedProducts && values.product_ids
+            ? values.product_ids.map((id) => Number(id))
+            : [],
+        category_ids:
+          hasSelectedCategories && values.category_ids
+            ? values.category_ids.map((id) => Number(id))
+            : [],
       };
-
-      console.log('Submitting payload:', payload);
 
       if (isUpdate && promotion) {
         const result = await updatePromotion({
@@ -740,6 +791,48 @@ export default function PromotionDialog({
                                       Không tìm thấy sản phẩm nào
                                     </p>
                                   )}
+
+                                {/* Nút "Xem thêm" cho sản phẩm */}
+                                {hasMoreProducts &&
+                                  productSearchTerm === '' && (
+                                    <div className='flex justify-center pt-2'>
+                                      <Button
+                                        variant='outline'
+                                        size='sm'
+                                        onClick={loadMoreProducts}
+                                        disabled={isLoadingMoreProducts}
+                                        className='w-full'
+                                      >
+                                        {isLoadingMoreProducts ? (
+                                          <>
+                                            <svg
+                                              className='animate-spin -ml-1 mr-2 h-4 w-4'
+                                              xmlns='http://www.w3.org/2000/svg'
+                                              fill='none'
+                                              viewBox='0 0 24 24'
+                                            >
+                                              <circle
+                                                className='opacity-25'
+                                                cx='12'
+                                                cy='12'
+                                                r='10'
+                                                stroke='currentColor'
+                                                strokeWidth='4'
+                                              ></circle>
+                                              <path
+                                                className='opacity-75'
+                                                fill='currentColor'
+                                                d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                                              ></path>
+                                            </svg>
+                                            Đang tải...
+                                          </>
+                                        ) : (
+                                          <>Xem thêm sản phẩm</>
+                                        )}
+                                      </Button>
+                                    </div>
+                                  )}
                               </div>
                             </ScrollArea>
 
@@ -891,6 +984,48 @@ export default function PromotionDialog({
                                         <p className='text-sm text-muted-foreground'>
                                           Không tìm thấy danh mục nào
                                         </p>
+                                      )}
+
+                                    {/* Nút "Xem thêm" cho danh mục */}
+                                    {hasMoreCategories &&
+                                      categorySearchTerm === '' && (
+                                        <div className='flex justify-center pt-2'>
+                                          <Button
+                                            variant='outline'
+                                            size='sm'
+                                            onClick={loadMoreCategories}
+                                            disabled={isLoadingMoreCategories}
+                                            className='w-full'
+                                          >
+                                            {isLoadingMoreCategories ? (
+                                              <>
+                                                <svg
+                                                  className='animate-spin -ml-1 mr-2 h-4 w-4'
+                                                  xmlns='http://www.w3.org/2000/svg'
+                                                  fill='none'
+                                                  viewBox='0 0 24 24'
+                                                >
+                                                  <circle
+                                                    className='opacity-25'
+                                                    cx='12'
+                                                    cy='12'
+                                                    r='10'
+                                                    stroke='currentColor'
+                                                    strokeWidth='4'
+                                                  ></circle>
+                                                  <path
+                                                    className='opacity-75'
+                                                    fill='currentColor'
+                                                    d='M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z'
+                                                  ></path>
+                                                </svg>
+                                                Đang tải...
+                                              </>
+                                            ) : (
+                                              <>Xem thêm danh mục</>
+                                            )}
+                                          </Button>
+                                        </div>
                                       )}
                                   </div>
                                 </ScrollArea>

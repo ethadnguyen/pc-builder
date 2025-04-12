@@ -22,6 +22,7 @@ import { ProductService } from '../../products/services/products.service';
 import { UserRepository } from '../../users/repositories/user.repositories';
 import axios from 'axios';
 import { ConfigService } from '@nestjs/config';
+import { Promotion } from '../../promotions/entities/promotion.entity';
 
 @Injectable()
 export class OrderService {
@@ -58,7 +59,6 @@ export class OrderService {
 
   private async sendOrderNotification(order: Order) {
     try {
-      // Lấy thông tin người dùng nếu có user_id
       let userData = null;
       if (order.user_id) {
         userData = await this.userRepository.findById(order.user_id);
@@ -82,7 +82,6 @@ export class OrderService {
       console.log('Đã gửi thông báo đơn hàng mới');
     } catch (error) {
       console.error('Lỗi khi gửi thông báo đơn hàng:', error);
-      // Không throw lỗi để không ảnh hưởng đến việc tạo đơn hàng
     }
   }
 
@@ -114,7 +113,6 @@ export class OrderService {
         );
       }
 
-      // Kiểm tra số lượng đặt hàng với số lượng tồn kho
       if (product.stock < item.quantity) {
         throw new BadRequestException(
           `Sản phẩm ${product.name} chỉ còn ${product.stock} trong kho, không đủ số lượng yêu cầu (${item.quantity})`,
@@ -142,25 +140,46 @@ export class OrderService {
 
     let discountAmount = 0;
     let finalPrice = input.total_price;
-    let promotionId = null;
+    let promotionIds: number[] = [];
 
-    if (input.promotion_id) {
+    if (input.promotion_ids && input.promotion_ids.length > 0) {
+      promotionIds = [...input.promotion_ids];
+    } else {
+      for (const product of products) {
+        if (
+          product.is_sale &&
+          product.promotions &&
+          product.promotions.length > 0
+        ) {
+          for (const promotion of product.promotions) {
+            if (!promotionIds.includes(promotion.id)) {
+              promotionIds.push(promotion.id);
+            }
+          }
+        }
+      }
+    }
+
+    if (promotionIds.length > 0) {
       const productItems = input.order_items.map((item) => ({
         productId: item.product_id,
         quantity: item.quantity,
       }));
 
-      const discountResult = await this.promotionService.calculateDiscount(
-        input.promotion_id,
-        productItems,
-        true,
-      );
+      for (const promotionId of promotionIds) {
+        const discountResult = await this.promotionService.calculateDiscount(
+          promotionId,
+          productItems,
+          true,
+        );
 
-      if (discountResult.isValid) {
-        discountAmount = discountResult.discountAmount;
-        finalPrice = input.total_price - discountAmount;
-        promotionId = input.promotion_id;
+        if (discountResult.isValid) {
+          discountAmount += discountResult.discountAmount;
+        }
       }
+
+      finalPrice = input.total_price - discountAmount;
+      if (finalPrice < 0) finalPrice = 0;
     }
 
     const order = new Order();
@@ -169,7 +188,11 @@ export class OrderService {
     order.original_price = input.total_price;
     order.discount_amount = discountAmount;
     order.amount = orderItems.reduce((sum, item) => sum + item.quantity, 0);
-    order.promotion_id = promotionId;
+
+    if (promotionIds.length > 0) {
+      order.promotions = promotionIds.map((id) => ({ id }) as Promotion);
+    }
+
     order.phone = input.phone;
     order.status = input.status || OrderStatus.PENDING;
     order.address = address;
@@ -232,12 +255,6 @@ export class OrderService {
         input.paid_at = new Date();
       }
 
-      // if (input.payment_status === PaymentStatus.PAID) {
-      //   if (currentOrder.status === OrderStatus.PENDING) {
-      //     input.status = OrderStatus.SHIPPING;
-      //   }
-      // }
-
       if (input.status) {
         currentOrder.status = input.status;
       }
@@ -265,6 +282,47 @@ export class OrderService {
       address = await this.addressService.createAddressFromGoong(
         input.new_address,
       );
+    }
+
+    // Xử lý promotion_ids
+    let promotionIds: number[] = [];
+    if (input.promotion_ids && input.promotion_ids.length > 0) {
+      promotionIds = [...input.promotion_ids];
+    }
+
+    // Xử lý giảm giá nếu có thay đổi về promotions
+    let discountAmount = currentOrder.discount_amount;
+    let finalPrice = input.total_price || currentOrder.total_price;
+    let orderPromotions = null;
+
+    if (
+      promotionIds.length > 0 &&
+      currentOrder.status === OrderStatus.PENDING
+    ) {
+      const productItems = currentOrder.order_items.map((item) => ({
+        productId: item.product.id,
+        quantity: item.quantity,
+      }));
+
+      // Tính lại tổng giảm giá từ tất cả các promotion
+      discountAmount = 0;
+      for (const promotionId of promotionIds) {
+        const discountResult = await this.promotionService.calculateDiscount(
+          promotionId,
+          productItems,
+          true,
+        );
+
+        if (discountResult.isValid) {
+          discountAmount += discountResult.discountAmount;
+        }
+      }
+
+      finalPrice = currentOrder.original_price - discountAmount;
+      if (finalPrice < 0) finalPrice = 0;
+
+      // Cập nhật mối quan hệ promotions
+      orderPromotions = promotionIds.map((id) => ({ id }) as Promotion);
     }
 
     if (input.order_items && input.order_items.length > 0) {
@@ -302,14 +360,20 @@ export class OrderService {
       const orderUpdate: Partial<Order> = {
         status: input.status,
         phone: input.phone,
-        total_price: input.total_price,
-        promotion_id: input.promotion_id,
+        total_price: finalPrice,
+        original_price: input.total_price || currentOrder.original_price,
+        discount_amount: discountAmount,
         payment_status: input.payment_status,
         payment_method: input.payment_method,
         paid_at: input.paid_at,
         address,
         order_items: orderItems,
       };
+
+      // Cập nhật promotions nếu có
+      if (orderPromotions) {
+        orderUpdate.promotions = orderPromotions;
+      }
 
       return this.orderRepository.update(input.id, orderUpdate);
     }
@@ -339,13 +403,18 @@ export class OrderService {
     const orderUpdate: Partial<Order> = {
       status: input.status,
       phone: input.phone,
-      total_price: input.total_price,
-      promotion_id: input.promotion_id,
+      total_price: finalPrice,
+      discount_amount: discountAmount,
       payment_status: input.payment_status,
       payment_method: input.payment_method,
       paid_at: input.paid_at,
       address,
     };
+
+    // Cập nhật promotions nếu có
+    if (orderPromotions) {
+      orderUpdate.promotions = orderPromotions;
+    }
 
     return this.orderRepository.update(input.id, orderUpdate);
   }

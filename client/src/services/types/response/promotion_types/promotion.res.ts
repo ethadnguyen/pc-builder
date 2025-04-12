@@ -5,7 +5,7 @@ export interface PromotionRes {
   id: number;
   name: string;
   description: string;
-  discount_amount: number;
+  discount_value: number;
   discount_type: string;
   start_date: string;
   end_date: string;

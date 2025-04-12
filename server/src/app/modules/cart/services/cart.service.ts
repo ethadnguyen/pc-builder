@@ -44,11 +44,7 @@ export class CartService {
     cartItem.cart_id = cart.id;
     cartItem.product_id = product_id;
     cartItem.quantity = quantity;
-    if (product.is_sale && product.sale_price && product.sale_price > 0) {
-      cartItem.price = product.sale_price;
-    } else {
-      cartItem.price = product.price;
-    }
+    cartItem.price = product.price;
 
     return await this.cartRepository.addItem(cartItem);
   }
@@ -65,18 +61,7 @@ export class CartService {
     }
 
     const product = await this.productRepository.findById(product_id);
-    if (
-      product &&
-      product.is_sale &&
-      product.sale_price &&
-      product.sale_price > 0
-    ) {
-      await this.cartRepository.updateItemPrice(
-        cart.id,
-        product_id,
-        product.sale_price,
-      );
-    } else if (product) {
+    if (product) {
       await this.cartRepository.updateItemPrice(
         cart.id,
         product_id,
@@ -109,6 +94,33 @@ export class CartService {
     await this.cartRepository.clearCart(cart.id);
   }
 
+  // Phương thức đồng bộ giá sản phẩm trong giỏ hàng với giá sản phẩm hiện tại
+  async synchronizeCartItemPrices(
+    cart_id: number,
+    items: CartItem[],
+  ): Promise<void> {
+    if (!items || items.length === 0) return;
+
+    const priceUpdatePromises = [];
+
+    for (const item of items) {
+      const product = await this.productRepository.findById(item.product_id);
+      if (product && product.price !== item.price) {
+        priceUpdatePromises.push(
+          this.cartRepository.updateItemPrice(
+            cart_id,
+            item.product_id,
+            product.price,
+          ),
+        );
+      }
+    }
+
+    if (priceUpdatePromises.length > 0) {
+      await Promise.all(priceUpdatePromises);
+    }
+  }
+
   async getCart(user_id: number): Promise<{
     items: CartItem[];
     total: number;
@@ -121,6 +133,14 @@ export class CartService {
         total: 0,
         item_count: 0,
       };
+    }
+
+    // Đồng bộ hóa giá sản phẩm trong giỏ hàng với giá hiện tại
+    if (cart.items && cart.items.length > 0) {
+      await this.synchronizeCartItemPrices(cart.id, cart.items);
+      // Lấy lại giỏ hàng sau khi đồng bộ giá
+      const updatedCart = await this.cartRepository.findById(cart.id);
+      cart.items = updatedCart.items;
     }
 
     const [total, item_count] = await Promise.all([

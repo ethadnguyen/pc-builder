@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useCartStore } from '@/store/useCartStore';
 import { useToast } from '@/hooks/use-toast';
 import { UpdateCartItemReq } from '@/services/types/request/cart_types/update-cart-item.req';
+import { CartItemRes } from '@/services/types/response/cart_types/cart';
 
 const formatCurrency = (amount: number): string => {
   return new Intl.NumberFormat('vi-VN').format(amount);
@@ -36,7 +37,7 @@ export default function CartPage() {
         quantity: newQuantity,
       };
       await updateCartItem(updateData);
-    } catch (error) {
+    } catch {
       toast({
         title: 'Lỗi',
         description: 'Không thể cập nhật số lượng sản phẩm',
@@ -52,7 +53,7 @@ export default function CartPage() {
         title: 'Thành công',
         description: 'Đã xóa sản phẩm khỏi giỏ hàng',
       });
-    } catch (error) {
+    } catch {
       toast({
         title: 'Lỗi',
         description: 'Không thể xóa sản phẩm khỏi giỏ hàng',
@@ -61,7 +62,19 @@ export default function CartPage() {
     }
   };
 
-  const subtotal = cart?.total || 0;
+  const calculateItemTotal = (item: CartItemRes) => {
+    const price = item.product?.is_sale
+      ? item.product?.sale_price
+      : item.product?.price;
+    return (price || 0) * item.quantity;
+  };
+
+  const calculateCartSubtotal = () => {
+    if (!cart?.items) return 0;
+    return cart.items.reduce((sum, item) => sum + calculateItemTotal(item), 0);
+  };
+
+  const subtotal = calculateCartSubtotal();
   const shipping = subtotal > 0 ? 50000 : 0;
   const total = Number(subtotal) + Number(shipping);
 
@@ -88,6 +101,8 @@ export default function CartPage() {
       </div>
     );
   }
+
+  console.log('cart', cart);
 
   return (
     <div className='container py-8'>
@@ -129,7 +144,12 @@ export default function CartPage() {
                       {item.product?.name || 'Sản phẩm không xác định'}
                     </Link>
                     <div className='text-muted-foreground text-sm mt-1'>
-                      {formatCurrency(item.price)}đ
+                      {formatCurrency(item.product?.price || 0)}đ
+                      {item.product?.is_sale && (
+                        <span className='ml-2 text-destructive'>
+                          {formatCurrency(item.product?.sale_price || 0)}đ
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div className='flex items-center space-x-2'>
@@ -156,7 +176,7 @@ export default function CartPage() {
                     </Button>
                   </div>
                   <div className='w-24 text-right font-medium'>
-                    {formatCurrency(item.price * item.quantity)}đ
+                    {formatCurrency(calculateItemTotal(item))}đ
                   </div>
                   <Button
                     variant='ghost'

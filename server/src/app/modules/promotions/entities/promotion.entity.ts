@@ -30,9 +30,9 @@ export class Promotion {
   })
   discount_type: DiscountType;
 
-  @ManyToMany(() => Product)
+  @ManyToMany(() => Product, (product) => product.promotions)
   @JoinTable({
-    name: 'promotion_products',
+    name: 'product_promotions',
     joinColumn: {
       name: 'promotion_id',
       referencedColumnName: 'id',

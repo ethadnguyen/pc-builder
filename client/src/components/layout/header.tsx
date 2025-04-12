@@ -2,15 +2,7 @@
 
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
-import {
-  Search,
-  ShoppingCart,
-  Menu,
-  X,
-  Heart,
-  User,
-  Monitor,
-} from 'lucide-react';
+import { Search, ShoppingCart, Menu, X, Heart, User } from 'lucide-react';
 import { ThemeToggle } from '@/components/ui/theme-toggle';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,16 +29,13 @@ import { useUserStore } from '@/store/useUserStore';
 
 export function Header() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  // State để lưu trữ danh mục từ API
+  const [searchTerm, setSearchTerm] = useState('');
   const [categories, setCategories] = useState<CategoryRes[]>([]);
 
-  // Sử dụng useUserStore để kiểm tra trạng thái đăng nhập
   const { isAuthenticated, logout } = useUserStore();
 
-  // Sử dụng useCartStore để lấy thông tin giỏ hàng
   const { cart, fetchCart } = useCartStore();
 
-  // Lấy danh mục từ API khi component được mount
   useEffect(() => {
     const fetchCategories = async () => {
       try {
@@ -76,6 +65,18 @@ export function Header() {
   // Xử lý đăng xuất
   const handleLogout = () => {
     logout();
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchTerm.trim()) {
+      // Chuyển hướng đến trang tìm kiếm với từ khóa tìm kiếm
+      window.location.href = `/search?q=${encodeURIComponent(
+        searchTerm.trim()
+      )}`;
+      setIsSearchOpen(false);
+      setSearchTerm('');
+    }
   };
 
   return (
@@ -142,11 +143,16 @@ export function Header() {
         <div className='flex items-center ml-auto gap-2'>
           {isSearchOpen ? (
             <div className='flex items-center'>
-              <Input
-                type='search'
-                placeholder='Tìm kiếm...'
-                className='w-[200px] md:w-[300px]'
-              />
+              <form onSubmit={handleSearch}>
+                <Input
+                  type='search'
+                  placeholder='Tìm kiếm...'
+                  className='w-[200px] md:w-[300px]'
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  autoFocus
+                />
+              </form>
               <Button
                 variant='ghost'
                 size='icon'
@@ -166,7 +172,7 @@ export function Header() {
             </Button>
           )}
 
-          <Link href='/wishlist'>
+          <Link href='/profile/wishlist'>
             <Button variant='ghost' size='icon'>
               <Heart className='h-5 w-5' />
               <span className='sr-only'>Yêu thích</span>
@@ -203,7 +209,7 @@ export function Header() {
                   <Link href='/configuration'>Cấu hình đã lưu</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href='/wishlist'>Danh sách yêu thích</Link>
+                  <Link href='/profile/wishlist'>Danh sách yêu thích</Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout}>

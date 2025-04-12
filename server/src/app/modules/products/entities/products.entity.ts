@@ -12,6 +12,7 @@ import {
 import { Category } from '../../categories/entities/categories.entity';
 import { ProductType } from '../enums/product-type.enum';
 import { Brand } from '../../brand/entities/brand.entity';
+import { Promotion } from '../../promotions/entities/promotion.entity';
 
 @Entity('products')
 export class Product {
@@ -93,6 +94,9 @@ export class Product {
     default: 0,
   })
   sale_price: number;
+
+  @ManyToMany(() => Promotion, (promotion) => promotion.products)
+  promotions: Promotion[];
 
   @Column({
     type: 'float',

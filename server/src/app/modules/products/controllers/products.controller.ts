@@ -35,47 +35,40 @@ export class ProductController {
 
   @Post()
   @HttpCode(201)
-  @ApiOperation({ summary: 'Create a new product' })
-  async create(@Body() createProductReq: CreateProductReq) {
+  @ApiOperation({ summary: 'Create product' })
+  @ApiResponse({ type: ProductRes })
+  create(@Body() createProductReq: CreateProductReq) {
     return this.productService.createProduct(createProductReq);
   }
 
   @Get('/all')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get all products' })
-  @ApiResponse({
-    status: 200,
-    type: ProductListRes,
-  })
-  async getAllProducts(@Query() queryParams: GetAllProductReq) {
+  @ApiResponse({ type: ProductListRes })
+  getAllProducts(@Query() queryParams: GetAllProductReq) {
     return this.productService.getAllProducts(queryParams);
   }
 
   @Get('/featured')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get featured products for homepage' })
-  @ApiResponse({
-    status: 200,
-    type: ProductListRes,
-  })
-  async getFeaturedProducts(@Query() queryParams: GetAllProductReq) {
+  @ApiResponse({ type: ProductListRes })
+  getFeaturedProducts(@Query() queryParams: GetAllProductReq) {
     return this.productService.getFeaturedProducts(queryParams);
   }
 
   @Get('search')
   @HttpCode(200)
   @ApiOperation({ summary: 'Search product by name' })
-  @ApiResponse({
-    status: 200,
-    type: ProductListRes,
-  })
-  async searchProducts(@Query() queryParams: GetProductsForChatbotReq) {
+  @ApiResponse({ type: ProductListRes })
+  searchProducts(@Query() queryParams: GetProductsForChatbotReq) {
     return this.productService.searchProducts(queryParams);
   }
 
   @Get(':id')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get product by id' })
+  @ApiResponse({ type: ProductRes })
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.productService.getProductById(id);
   }
@@ -83,18 +76,16 @@ export class ProductController {
   @Get('slug/:slug')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get product by slug' })
-  async getProductBySlug(@Param('slug') slug: string) {
+  @ApiResponse({ type: ProductRes })
+  getProductBySlug(@Param('slug') slug: string) {
     return this.productService.getProductBySlug(slug);
   }
 
   @Get('category/:slug')
   @HttpCode(200)
   @ApiOperation({ summary: 'Get products by category slug' })
-  @ApiResponse({
-    status: 200,
-    type: ProductListRes,
-  })
-  async getProductsByCategorySlug(
+  @ApiResponse({ type: ProductListRes })
+  getProductsByCategorySlug(
     @Param('slug') slug: string,
     @Query() queryParams: GetAllProductReq,
   ) {
@@ -105,9 +96,7 @@ export class ProductController {
   @HttpCode(200)
   @ApiOperation({ summary: 'Update product' })
   @ApiResponse({ type: ProductRes })
-  async update(
-    @Body() updateProductReq: UpdateProductReq,
-  ): Promise<ProductRes> {
+  async update(@Body() updateProductReq: UpdateProductReq) {
     return this.productService.updateProduct(updateProductReq);
   }
 

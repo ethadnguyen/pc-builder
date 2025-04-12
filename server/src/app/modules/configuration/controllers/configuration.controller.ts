@@ -166,10 +166,9 @@ export class ConfigurationController {
   ) {
     try {
       const tokenValue = token.split(' ')[1];
-      const decoded = this.jwtService.verify(tokenValue);
-      const userId = decoded.sub || decoded.id;
+      const decoded = this.jwtService.decode(tokenValue);
+      const userId = decoded.user_id;
 
-      // Kiểm tra quyền sở hữu cấu hình
       const configuration = await this.configurationService.findById(id);
       if (configuration.user_id !== userId) {
         throw new UnauthorizedException('Bạn không có quyền xóa cấu hình này');

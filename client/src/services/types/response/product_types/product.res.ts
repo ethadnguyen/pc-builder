@@ -1,6 +1,7 @@
 import { BrandRes } from '../brand_types/brand.res';
 import { CategoryRes } from '../category_types/category.res';
 import { PaginationRes } from '../pagination_types/pagination-res';
+import { PromotionRes } from '../promotion_types/promotion.res';
 
 export const enum ProductType {
   CPU = 'CPU',
@@ -26,6 +27,7 @@ export interface ProductRes {
   brand: BrandRes;
   images: string[];
   specifications: Record<string, string>;
+  promotions: PromotionRes[];
   is_active: boolean;
   is_sale?: boolean;
   sale_price?: number;

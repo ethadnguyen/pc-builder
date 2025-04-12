@@ -1,0 +1,16 @@
+'use client';
+
+import { Toaster } from '@/components/ui/sonner';
+
+export default function AuthLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <div className='flex min-h-screen flex-col items-center justify-center bg-muted/30'>
+      {children}
+      <Toaster />
+    </div>
+  );
+}

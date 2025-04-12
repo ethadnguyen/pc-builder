@@ -2,6 +2,8 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  forwardRef,
+  Inject,
 } from '@nestjs/common';
 import { ProductRepository } from '../repositories/products.repositories';
 import { GetAllProductInput } from './types/get.all.product.input';
@@ -14,6 +16,9 @@ import { generateSlug } from 'src/common/helpers';
 import { BrandRepository } from '../../brand/repositories/brand.repository';
 import { CategoryService } from '../../categories/services/categories.service';
 import { GetProductsForChatbotInput } from './types/get-product-for-chatbot.input';
+import { PromotionRepository } from '../../promotions/repositories/promotion.repositories';
+import { DiscountType } from '../../promotions/enums/discount-type.enum';
+import { CartRepository } from '../../cart/repositories/cart.repositories';
 
 @Injectable()
 export class ProductService {
@@ -22,6 +27,10 @@ export class ProductService {
     private readonly categoryRepo: CategoryRepository,
     private readonly brandRepo: BrandRepository,
     private readonly categoryService: CategoryService,
+    @Inject(forwardRef(() => PromotionRepository))
+    private readonly promotionRepo: PromotionRepository,
+    @Inject(forwardRef(() => CartRepository))
+    private readonly cartRepo: CartRepository,
   ) {}
 
   async getAllProducts(queryParams: GetAllProductInput) {
@@ -187,7 +196,14 @@ export class ProductService {
 
     if (input.description !== undefined)
       updateData.description = input.description;
-    if (input.price !== undefined) updateData.price = input.price;
+
+    // Kiểm tra xem giá có được cập nhật hay không
+    const priceUpdated =
+      input.price !== undefined && input.price !== productDB.price;
+    if (priceUpdated) {
+      updateData.price = input.price;
+    }
+
     if (input.stock !== undefined) updateData.stock = input.stock;
     if (input.images !== undefined) updateData.images = input.images;
     if (input.is_active !== undefined) updateData.is_active = input.is_active;
@@ -200,7 +216,20 @@ export class ProductService {
 
     Object.assign(productDB, updateData);
 
+    // Nếu giá thay đổi, cập nhật lại giá khuyến mãi
+    if (priceUpdated && productDB.is_sale) {
+      await this.recalculateProductSalePrice(productDB);
+    }
+
     const updatedProduct = await this.productRepo.update(productDB);
+
+    // Cập nhật giá trong giỏ hàng nếu giá sản phẩm thay đổi
+    if (priceUpdated) {
+      await this.updateProductPriceInCarts(
+        updatedProduct.id,
+        updatedProduct.price,
+      );
+    }
 
     if (input.category_id) {
       const newCategoryIds = productDB.categories.map((cat) => cat.id);
@@ -481,6 +510,110 @@ export class ProductService {
     } catch (error) {
       console.error('Error updating multiple product stocks:', error);
       throw new BadRequestException('Không thể cập nhật số lượng sản phẩm');
+    }
+  }
+
+  // Thêm phương thức mới để tính toán lại giá khuyến mãi
+  async recalculateProductSalePrice(product: Product): Promise<Product> {
+    // Lấy tất cả khuyến mãi đang hoạt động cho sản phẩm
+    const activePromotions =
+      await this.promotionRepo.findActivePromotionsForProduct(product.id);
+
+    if (!activePromotions || activePromotions.length === 0) {
+      product.is_sale = false;
+      product.sale_price = 0;
+      return product;
+    }
+
+    // Tách các khuyến mãi theo loại
+    const percentagePromotions = activePromotions.filter(
+      (p) => p.discount_type === DiscountType.PERCENTAGE,
+    );
+    const fixedPromotions = activePromotions.filter(
+      (p) => p.discount_type === DiscountType.FIXED,
+    );
+
+    // Giá gốc của sản phẩm
+    const originalPrice = product.price;
+    let currentPrice = originalPrice;
+
+    // Áp dụng khuyến mãi phần trăm (chỉ áp dụng khuyến mãi phần trăm cao nhất)
+    if (percentagePromotions.length > 0) {
+      // Sắp xếp theo phần trăm giảm giá từ cao xuống thấp
+      percentagePromotions.sort((a, b) => b.discount_value - a.discount_value);
+      const bestPercentagePromotion = percentagePromotions[0];
+
+      // Tính số tiền giảm theo phần trăm dựa trên giá gốc
+      let percentageDiscount =
+        (originalPrice * bestPercentagePromotion.discount_value) / 100;
+
+      // Áp dụng giới hạn giảm giá tối đa nếu có
+      if (
+        bestPercentagePromotion.maximum_discount_amount &&
+        percentageDiscount > bestPercentagePromotion.maximum_discount_amount
+      ) {
+        percentageDiscount = bestPercentagePromotion.maximum_discount_amount;
+      }
+
+      // Áp dụng giảm giá phần trăm vào giá hiện tại
+      currentPrice = originalPrice - percentageDiscount;
+    }
+
+    // Tiếp tục áp dụng tất cả các khuyến mãi cố định vào giá đã giảm
+    if (fixedPromotions.length > 0) {
+      // Tính tổng giảm giá cố định từ tất cả khuyến mãi
+      const totalFixedDiscount = fixedPromotions.reduce(
+        (sum, promo) => sum + promo.discount_value,
+        0,
+      );
+
+      // Áp dụng giảm giá cố định vào giá hiện tại
+      currentPrice = currentPrice - totalFixedDiscount;
+    }
+
+    // Đảm bảo giá không âm và làm tròn
+    currentPrice = Math.max(0, currentPrice);
+    currentPrice = Math.round(currentPrice);
+
+    // Cập nhật thông tin giảm giá cho sản phẩm
+    if (currentPrice < originalPrice) {
+      product.is_sale = true;
+      product.sale_price = currentPrice;
+    } else {
+      product.is_sale = false;
+      product.sale_price = 0;
+    }
+
+    return product;
+  }
+
+  // Phương thức cập nhật giá sản phẩm trong tất cả giỏ hàng
+  async updateProductPriceInCarts(
+    productId: number,
+    newPrice: number,
+  ): Promise<void> {
+    try {
+      // Tìm tất cả các cart item chứa sản phẩm cần cập nhật
+      const cartItems = await this.cartRepo.findCartItemsByProductId(productId);
+
+      if (!cartItems || cartItems.length === 0) {
+        return;
+      }
+
+      // Cập nhật giá của sản phẩm trong tất cả giỏ hàng
+      const updatePromises = cartItems.map((item) =>
+        this.cartRepo.updateItemPrice(item.cart_id, productId, newPrice),
+      );
+
+      await Promise.all(updatePromises);
+      console.log(
+        `Đã cập nhật giá sản phẩm ID ${productId} trong ${updatePromises.length} giỏ hàng`,
+      );
+    } catch (error) {
+      console.error(
+        `Lỗi khi cập nhật giá sản phẩm ${productId} trong giỏ hàng:`,
+        error,
+      );
     }
   }
 }

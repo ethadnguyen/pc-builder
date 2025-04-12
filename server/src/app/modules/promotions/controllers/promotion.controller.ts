@@ -36,6 +36,16 @@ export class PromotionController {
     return this.promotionService.findAllPromotions(query);
   }
 
+  @Get('check-expiring')
+  @HttpCode(200)
+  @ApiResponse({
+    status: 200,
+    description: 'Kiểm tra và thông báo khuyến mãi sắp hết hạn',
+  })
+  async checkExpiringPromotions() {
+    return this.promotionService.checkExpiringPromotions();
+  }
+
   // @Public()
   @Get(':id')
   @HttpCode(200)
@@ -104,13 +114,14 @@ export class PromotionController {
     return this.promotionService.incrementUsedCount(id);
   }
 
-  @Get('check-expiring')
+  @Post(':id/decrement-usage')
   @HttpCode(200)
   @ApiResponse({
     status: 200,
-    description: 'Kiểm tra và thông báo khuyến mãi sắp hết hạn',
+    description: 'Giảm số lần sử dụng của khuyến mãi',
+    type: PromotionRes,
   })
-  async checkExpiringPromotions() {
-    return this.promotionService.checkExpiringPromotions();
+  async decrementPromotionUsage(@Param('id') id: number) {
+    return this.promotionService.decrementUsedCount(id);
   }
 }

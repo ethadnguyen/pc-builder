@@ -9,6 +9,9 @@ import {
   Tags,
   Users,
   Factory,
+  UserCircle,
+  UserRound,
+  KeyRound,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -25,8 +28,18 @@ import {
 const menuItems = [
   {
     title: 'Tổng quan',
-    href: '/',
+    href: '/dashboard',
     icon: LayoutDashboard,
+  },
+  {
+    title: 'Vai trò',
+    href: '/role',
+    icon: UserRound,
+  },
+  {
+    title: 'Quyền',
+    href: '/permission',
+    icon: KeyRound,
   },
   {
     title: 'Sản phẩm',
@@ -49,14 +62,14 @@ const menuItems = [
     icon: ShoppingCart,
   },
   {
-    title: 'Tài khoản',
-    href: '/accounts',
-    icon: Users,
-  },
-  {
     title: 'Khuyến mãi',
     href: '/promotions',
     icon: Percent,
+  },
+  {
+    title: 'Thông tin cá nhân',
+    href: '/profile',
+    icon: UserCircle,
   },
 ];
 

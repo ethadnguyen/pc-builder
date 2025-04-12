@@ -1,10 +1,13 @@
 import { get, put } from '../api_client';
 import { UpdateOrderReq } from '../types/request/order.req';
+import { OrderStatus } from '../types/response/order.res';
 
 interface GetOrdersParams {
   page?: number;
   size?: number;
   user_id?: number;
+  status?: OrderStatus | string;
+  searchAddress?: string;
 }
 
 export const updateOrder = async (data: UpdateOrderReq) => {

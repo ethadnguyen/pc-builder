@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Promotion } from './entities/promotion.entity';
 import { PromotionService } from './services/promotion.service';
@@ -11,7 +11,7 @@ import { PromotionTaskService } from './services/promotion-task.service';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Promotion]),
-    ProductModule,
+    forwardRef(() => ProductModule),
     CategoryModule,
   ],
   controllers: [PromotionController],

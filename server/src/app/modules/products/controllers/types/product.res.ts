@@ -2,6 +2,7 @@ import { ApiProperty } from '@nestjs/swagger';
 import { CategoryRes } from '../../../categories/controllers/types/category.res';
 import { ProductType } from '../../enums/product-type.enum';
 import { BrandRes } from 'src/app/modules/brand/controllers/types/brand.res';
+import { PromotionRes } from 'src/app/modules/promotions/controllers/types/promotion.res';
 
 export class ProductRes {
   @ApiProperty()
@@ -45,6 +46,9 @@ export class ProductRes {
 
   @ApiProperty({ enum: ProductType })
   type: ProductType;
+
+  @ApiProperty({ type: [PromotionRes], required: false })
+  promotions: PromotionRes[];
 
   @ApiProperty()
   created_at: Date;

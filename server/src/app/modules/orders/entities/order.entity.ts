@@ -7,6 +7,8 @@ import {
   OneToMany,
   ManyToOne,
   JoinColumn,
+  ManyToMany,
+  JoinTable,
 } from 'typeorm';
 import { OrderItem } from './order-item.entity';
 import { OrderStatus } from '../enums/order-status.enum';
@@ -65,12 +67,13 @@ export class Order {
   @Column()
   user_id: number;
 
-  @ManyToOne(() => Promotion, { nullable: true })
-  @JoinColumn({ name: 'promotion_id' })
-  promotion: Promotion;
-
-  @Column({ nullable: true })
-  promotion_id: number;
+  @ManyToMany(() => Promotion)
+  @JoinTable({
+    name: 'order_promotions',
+    joinColumn: { name: 'order_id', referencedColumnName: 'id' },
+    inverseJoinColumn: { name: 'promotion_id', referencedColumnName: 'id' },
+  })
+  promotions: Promotion[];
 
   @OneToMany(() => OrderItem, (orderItem) => orderItem.order, {
     cascade: true,

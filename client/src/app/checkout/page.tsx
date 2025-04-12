@@ -184,6 +184,22 @@ export default function CheckoutPage() {
         price: item.price,
       }));
 
+      const promotionIds: number[] = [];
+
+      cart.items.forEach((item) => {
+        if (item.product && item.product.is_sale) {
+          const product = item.product as { promotions?: { id: number }[] };
+
+          if (product.promotions && Array.isArray(product.promotions)) {
+            product.promotions.forEach((promotion) => {
+              if (promotion.id && !promotionIds.includes(promotion.id)) {
+                promotionIds.push(promotion.id);
+              }
+            });
+          }
+        }
+      });
+
       const orderData = {
         order_items: orderItems,
         total_price: total,
@@ -191,7 +207,11 @@ export default function CheckoutPage() {
         address_id: parseInt(selectedAddress),
         user_id: Number(user?.user_id),
         payment_method: paymentMethod,
+        promotion_ids: promotionIds.length > 0 ? promotionIds : undefined,
       };
+
+      console.log('Khuyến mãi áp dụng:', promotionIds);
+      console.log('Dữ liệu đơn hàng:', orderData);
 
       const orderResponse = await createOrder(orderData);
 

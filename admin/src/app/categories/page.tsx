@@ -27,6 +27,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import type { LucideIcon } from 'lucide-react';
+import { AdminGuard } from '@/components/custom/admin-guard';
 
 interface CategoryListRes {
   categories: CategoryRes[];
@@ -176,165 +177,167 @@ export default function CategoryPage() {
   };
 
   return (
-    <>
-      <CategoryDialog
-        open={openDialog}
-        onClose={handleCloseDialog}
-        category={selectedCategory}
-        onRefresh={fetchData}
-      />
+    <AdminGuard>
+      <>
+        <CategoryDialog
+          open={openDialog}
+          onClose={handleCloseDialog}
+          category={selectedCategory}
+          onRefresh={fetchData}
+        />
 
-      <ConfirmDialog
-        open={openConfirmDialog}
-        onClose={() => setOpenConfirmDialog(false)}
-        title='Xác nhận xóa'
-        description='Bạn có chắc chắn muốn xóa danh mục này không? Hành động này không thể hoàn tác.'
-        onConfirm={() => {
-          if (selectedCategory) {
-            handleDelete(selectedCategory.id);
-            setOpenConfirmDialog(false);
-          }
-        }}
-      />
+        <ConfirmDialog
+          open={openConfirmDialog}
+          onClose={() => setOpenConfirmDialog(false)}
+          title='Xác nhận xóa'
+          description='Bạn có chắc chắn muốn xóa danh mục này không? Hành động này không thể hoàn tác.'
+          onConfirm={() => {
+            if (selectedCategory) {
+              handleDelete(selectedCategory.id);
+              setOpenConfirmDialog(false);
+            }
+          }}
+        />
 
-      <PageBody>
-        <div className='flex flex-col gap-4 col-span-12 md:col-span-12'>
-          <CustomBreadcrumb
-            items={[
-              { label: 'Home', href: '/' },
-              { label: 'Quản lý danh mục' },
-            ]}
-          />
-          <h1 className='text-xl font-medium'>Quản lý danh mục</h1>
+        <PageBody>
+          <div className='flex flex-col gap-4 col-span-12 md:col-span-12'>
+            <CustomBreadcrumb
+              items={[
+                { label: 'Home', href: '/' },
+                { label: 'Quản lý danh mục' },
+              ]}
+            />
+            <h1 className='text-xl font-medium'>Quản lý danh mục</h1>
 
-          <div>
-            <div className='grid grid-cols-12'>
-              <div className='relative w-full col-span-6'>
-                <Input
-                  className='pl-9'
-                  placeholder='Tìm kiếm'
-                  value={pageData.searchKey}
-                  onChange={(e) =>
-                    setPageData((prev) => ({
-                      ...prev,
-                      searchKey: e.target.value,
-                    }))
-                  }
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      handleSearch();
+            <div>
+              <div className='grid grid-cols-12'>
+                <div className='relative w-full col-span-6'>
+                  <Input
+                    className='pl-9'
+                    placeholder='Tìm kiếm'
+                    value={pageData.searchKey}
+                    onChange={(e) =>
+                      setPageData((prev) => ({
+                        ...prev,
+                        searchKey: e.target.value,
+                      }))
                     }
-                  }}
-                />
-                <Search className='absolute left-0 top-0 m-2.5 h-4 w-4 text-muted-foreground' />
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleSearch();
+                      }
+                    }}
+                  />
+                  <Search className='absolute left-0 top-0 m-2.5 h-4 w-4 text-muted-foreground' />
+                </div>
+                <div className='col-span-6 flex justify-end'>
+                  <Button onClick={() => handleOpenDialog()}>
+                    <PlusCircle className='mr-2 h-4 w-4' />
+                    Thêm danh mục mới
+                  </Button>
+                </div>
               </div>
-              <div className='col-span-6 flex justify-end'>
-                <Button onClick={() => handleOpenDialog()}>
-                  <PlusCircle className='mr-2 h-4 w-4' />
-                  Thêm danh mục mới
-                </Button>
-              </div>
-            </div>
 
-            <div className='mt-4'>
-              <div className='rounded-md border'>
-                {pageData.isLoading ? (
-                  <div className='flex items-center justify-center h-32 text-muted-foreground'>
-                    Đang tải...
-                  </div>
-                ) : !categories || categories.length === 0 ? (
-                  <div className='flex items-center justify-center h-32 text-muted-foreground'>
-                    Chưa có danh mục nào
-                  </div>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>ID</TableHead>
-                        <TableHead className='text-center'>Icon</TableHead>
-                        <TableHead>Tên danh mục</TableHead>
-                        <TableHead>Danh mục cha</TableHead>
-                        <TableHead>Mô tả</TableHead>
-                        <TableHead>Trạng thái</TableHead>
-                        <TableHead>Thao tác</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {categories.map((category) => (
-                        <TableRow key={category.id}>
-                          <TableCell>{category.id}</TableCell>
-                          <TableCell className='text-center'>
-                            <div className='inline-flex justify-center'>
-                              {renderIcon(category.icon)}
-                            </div>
-                          </TableCell>
-                          <TableCell>{category.name}</TableCell>
-                          <TableCell>
-                            {category.parent
-                              ? category.parent.name
-                              : 'Không có'}
-                          </TableCell>
-                          <TableCell>{category.description}</TableCell>
-                          <TableCell>
-                            <div className='flex items-center'>
-                              <Switch
-                                checked={category.is_active}
-                                onCheckedChange={() =>
-                                  handleToggleActive(category)
-                                }
-                                className='mr-2'
-                              />
-                              <Badge
-                                variant={
-                                  category.is_active ? 'default' : 'outline'
-                                }
-                              >
-                                {category.is_active ? 'Hoạt động' : 'Vô hiệu'}
-                              </Badge>
-                            </div>
-                          </TableCell>
-                          <TableCell>
-                            <div className='flex space-x-2'>
-                              <Button
-                                variant='outline'
-                                size='sm'
-                                onClick={() => handleOpenDialog(category)}
-                              >
-                                Sửa
-                              </Button>
-                              <Button
-                                variant='destructive'
-                                size='sm'
-                                onClick={() => {
-                                  setSelectedCategory(category);
-                                  setOpenConfirmDialog(true);
-                                }}
-                              >
-                                Xóa
-                              </Button>
-                            </div>
-                          </TableCell>
+              <div className='mt-4'>
+                <div className='rounded-md border'>
+                  {pageData.isLoading ? (
+                    <div className='flex items-center justify-center h-32 text-muted-foreground'>
+                      Đang tải...
+                    </div>
+                  ) : !categories || categories.length === 0 ? (
+                    <div className='flex items-center justify-center h-32 text-muted-foreground'>
+                      Chưa có danh mục nào
+                    </div>
+                  ) : (
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>ID</TableHead>
+                          <TableHead className='text-center'>Icon</TableHead>
+                          <TableHead>Tên danh mục</TableHead>
+                          <TableHead>Danh mục cha</TableHead>
+                          <TableHead>Mô tả</TableHead>
+                          <TableHead>Trạng thái</TableHead>
+                          <TableHead>Thao tác</TableHead>
                         </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+                      </TableHeader>
+                      <TableBody>
+                        {categories.map((category) => (
+                          <TableRow key={category.id}>
+                            <TableCell>{category.id}</TableCell>
+                            <TableCell className='text-center'>
+                              <div className='inline-flex justify-center'>
+                                {renderIcon(category.icon)}
+                              </div>
+                            </TableCell>
+                            <TableCell>{category.name}</TableCell>
+                            <TableCell>
+                              {category.parent
+                                ? category.parent.name
+                                : 'Không có'}
+                            </TableCell>
+                            <TableCell>{category.description}</TableCell>
+                            <TableCell>
+                              <div className='flex items-center'>
+                                <Switch
+                                  checked={category.is_active}
+                                  onCheckedChange={() =>
+                                    handleToggleActive(category)
+                                  }
+                                  className='mr-2'
+                                />
+                                <Badge
+                                  variant={
+                                    category.is_active ? 'default' : 'outline'
+                                  }
+                                >
+                                  {category.is_active ? 'Hoạt động' : 'Vô hiệu'}
+                                </Badge>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <div className='flex space-x-2'>
+                                <Button
+                                  variant='outline'
+                                  size='sm'
+                                  onClick={() => handleOpenDialog(category)}
+                                >
+                                  Sửa
+                                </Button>
+                                <Button
+                                  variant='destructive'
+                                  size='sm'
+                                  onClick={() => {
+                                    setSelectedCategory(category);
+                                    setOpenConfirmDialog(true);
+                                  }}
+                                >
+                                  Xóa
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                </div>
+                {pageData.data && pageData.data.totalPages > 1 && (
+                  <div className='mt-4 flex justify-center'>
+                    <PaginationWrapper
+                      totalPage={pageData.data.totalPages}
+                      selectedPage={pageData.data.currentPage}
+                      onPageChange={(page) =>
+                        setPageData((prev) => ({ ...prev, currentPage: page }))
+                      }
+                    />
+                  </div>
                 )}
               </div>
-              {pageData.data && pageData.data.totalPages > 1 && (
-                <div className='mt-4 flex justify-center'>
-                  <PaginationWrapper
-                    totalPage={pageData.data.totalPages}
-                    selectedPage={pageData.data.currentPage}
-                    onPageChange={(page) =>
-                      setPageData((prev) => ({ ...prev, currentPage: page }))
-                    }
-                  />
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      </PageBody>
-    </>
+        </PageBody>
+      </>
+    </AdminGuard>
   );
 }

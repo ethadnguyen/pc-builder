@@ -151,4 +151,11 @@ export class CartRepository {
 
     return result.count || 0;
   }
+
+  async findCartItemsByProductId(product_id: number): Promise<CartItem[]> {
+    return await this.cartItemRepo.find({
+      where: { product_id },
+      relations: ['cart', 'product'],
+    });
+  }
 }

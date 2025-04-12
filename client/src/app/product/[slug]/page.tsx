@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Heart, ShoppingCart } from 'lucide-react';
+import { ShoppingCart, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Breadcrumb } from '@/components/custom/breadcrumb';
@@ -65,6 +65,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { formatPrice } from '@/lib/utils';
+import { WishlistButton } from '@/components/WishlistButton';
 
 export default function ProductPage() {
   const params = useParams();
@@ -356,7 +358,6 @@ export default function ProductPage() {
     alt: product.name,
   }));
 
-  // Component hiển thị thông số từ specifications (dùng cho type OTHER hoặc các thông số chung)
   const SpecificationsTable = ({
     specifications,
   }: {
@@ -541,7 +542,7 @@ export default function ProductPage() {
     );
   };
 
-  console.log('reviews', reviews);
+  console.log('product', product);
 
   return (
     <div className='container-custom'>
@@ -588,10 +589,10 @@ export default function ProductPage() {
             {product.is_sale && product.sale_price ? (
               <>
                 <span className='text-3xl font-bold'>
-                  {product.sale_price.toLocaleString()}đ
+                  {formatPrice(product.sale_price)}₫
                 </span>
                 <span className='text-lg text-muted-foreground line-through'>
-                  {product.price.toLocaleString()}đ
+                  {formatPrice(product.price)}₫
                 </span>
                 <span className='bg-destructive text-destructive-foreground px-2 py-1 rounded text-sm font-medium'>
                   Giảm giá
@@ -599,10 +600,81 @@ export default function ProductPage() {
               </>
             ) : (
               <span className='text-3xl font-bold'>
-                {product.price.toLocaleString()}đ
+                {formatPrice(product.price)}₫
               </span>
             )}
           </div>
+
+          {/* Hiển thị thông tin khuyến mãi */}
+          {product.promotions && product.promotions.length > 0 && (
+            <div className='bg-primary/5 border border-primary/20 rounded-lg p-4 space-y-3'>
+              <h3 className='text-base font-medium flex items-center gap-2'>
+                <Tag className='h-4 w-4 text-primary' />
+                <span className='bg-primary text-primary-foreground px-1.5 py-0.5 rounded text-xs'>
+                  KM
+                </span>
+                <span>Khuyến mãi áp dụng</span>
+              </h3>
+              <div className='space-y-2.5 max-h-[180px] overflow-y-auto pr-2'>
+                {product.promotions.map((promotion) => {
+                  const startDate = new Date(promotion.start_date);
+                  const endDate = new Date(promotion.end_date);
+                  const isActive =
+                    promotion.is_active &&
+                    new Date() >= startDate &&
+                    new Date() <= endDate;
+
+                  if (!isActive) return null;
+
+                  return (
+                    <div
+                      key={promotion.id}
+                      className='flex items-start gap-3 bg-background p-3 rounded-md border'
+                    >
+                      <div className='min-w-5 h-5 flex items-center justify-center'>
+                        <div className='w-4 h-4 rounded-full bg-primary/20 flex items-center justify-center'>
+                          <div className='w-2 h-2 rounded-full bg-primary'></div>
+                        </div>
+                      </div>
+                      <div className='space-y-1 flex-1'>
+                        <p className='font-medium text-sm'>{promotion.name}</p>
+                        <p className='text-xs text-muted-foreground'>
+                          {promotion.discount_type === 'percentage'
+                            ? `Giảm ${
+                                promotion.discount_value
+                                  ? promotion.discount_value
+                                  : 0
+                              }% giá trị đơn hàng`
+                            : `Giảm ${
+                                promotion.discount_value
+                                  ? formatPrice(promotion.discount_value)
+                                  : 0
+                              }₫`}
+                          {promotion.maximum_discount_amount
+                            ? ` (tối đa ${formatPrice(
+                                promotion.maximum_discount_amount
+                              )}₫)`
+                            : ''}
+                        </p>
+                        {promotion.minimum_order_amount > 0 && (
+                          <p className='text-xs text-primary'>
+                            Áp dụng cho đơn hàng từ{' '}
+                            {formatPrice(promotion.minimum_order_amount)}₫
+                          </p>
+                        )}
+                        <p className='text-xs text-muted-foreground'>
+                          Hạn sử dụng:{' '}
+                          {new Date(promotion.end_date).toLocaleDateString(
+                            'vi-VN'
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className='border-t border-b py-4'>
             <p className='text-card-foreground'>{product.description}</p>
@@ -687,10 +759,11 @@ export default function ProductPage() {
             >
               Mua ngay
             </Button>
-            <Button variant='outline' size='icon' className='h-12 w-12'>
-              <Heart className='h-5 w-5' />
-              <span className='sr-only'>Thêm vào yêu thích</span>
-            </Button>
+            <WishlistButton
+              productId={product.id}
+              size='icon'
+              className='h-12 w-12'
+            />
           </div>
         </div>
       </div>

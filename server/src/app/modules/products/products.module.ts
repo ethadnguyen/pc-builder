@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { Product } from './entities/products.entity';
 import { ProductController } from './controllers/products.controller';
@@ -38,6 +38,8 @@ import { CoolingController } from './controllers/cooling.controller';
 import { CoolingService } from './services/cooling-product.service';
 import { CoolingRepository } from './repositories/cooling.repositories';
 import { BrandModule } from '../brand/brand.module';
+import { PromotionModule } from '../promotions/promotion.module';
+import { CartModule } from '../cart/cart.module';
 
 @Module({
   imports: [
@@ -54,6 +56,8 @@ import { BrandModule } from '../brand/brand.module';
     ]),
     CategoryModule,
     BrandModule,
+    forwardRef(() => PromotionModule),
+    forwardRef(() => CartModule),
   ],
   controllers: [
     ProductController,

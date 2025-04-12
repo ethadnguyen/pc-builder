@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Between, FindOptionsWhere, ILike, In, Repository } from 'typeorm';
 import { Promotion } from '../entities/promotion.entity';
-import { Repository } from 'typeorm';
 import { DiscountType } from '../enums/discount-type.enum';
 
 @Injectable()
@@ -121,6 +121,25 @@ export class PromotionRepository {
       .leftJoinAndSelect('promotion.products', 'products')
       .leftJoinAndSelect('promotion.categories', 'categories')
       .where('promotion.id IN (:...ids)', { ids })
+      .getMany();
+  }
+
+  async findActivePromotionsForProduct(
+    productId: number,
+  ): Promise<Promotion[]> {
+    const today = new Date();
+
+    return this.promotionRepository
+      .createQueryBuilder('promotion')
+      .leftJoinAndSelect('promotion.products', 'products')
+      .leftJoinAndSelect('promotion.categories', 'categories')
+      .where('promotion.is_active = :isActive', { isActive: true })
+      .andWhere('promotion.start_date <= :today', { today })
+      .andWhere('promotion.end_date >= :today', { today })
+      .andWhere(
+        '(products.id = :productId OR EXISTS (SELECT 1 FROM product_promotions pp WHERE pp.promotion_id = promotion.id AND pp.product_id = :productId))',
+        { productId },
+      )
       .getMany();
   }
 }

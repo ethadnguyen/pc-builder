@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { configurationService } from '@/services/modules/configuration.service';
 import { ConfigurationRes } from '@/services/types/response/configuration_types/configuration.res';
-import { ConfigurationListRes } from '@/services/types/response/configuration_types/configuration-list.res';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import {
@@ -16,10 +15,19 @@ import {
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Loader2, Edit, ShoppingCart, Trash2, Plus } from 'lucide-react';
+import { Loader2, Edit, ShoppingCart, Trash2, Plus, Info } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { PaginationWrapper } from '@/components/custom/pagination-wrapper';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Separator } from '@/components/ui/separator';
 
 export default function ConfigurationsPage() {
   const [userConfigs, setUserConfigs] = useState<ConfigurationRes[]>([]);
@@ -128,7 +136,54 @@ export default function ConfigurationsPage() {
     loadPublicConfigurations();
   }, []);
 
-  const renderComponents = (config: ConfigurationRes) => {
+  const renderComponentsSummary = (config: ConfigurationRes) => {
+    if (!config.component_ids || !Array.isArray(config.component_ids)) {
+      return (
+        <div className='text-sm text-muted-foreground'>
+          Không có thông tin linh kiện
+        </div>
+      );
+    }
+
+    // Nhóm các loại linh kiện để hiển thị
+    const groupedComponents: {
+      [key: string]: (typeof config.component_ids)[0][];
+    } = {};
+
+    config.component_ids.forEach((component) => {
+      if (!groupedComponents[component.product_type]) {
+        groupedComponents[component.product_type] = [];
+      }
+      groupedComponents[component.product_type].push(component);
+    });
+
+    // Chỉ hiển thị 3 loại linh kiện quan trọng nhất (CPU, GPU, Mainboard)
+    const priorityTypes = ['CPU', 'GPU', 'Mainboard'];
+    const displayTypes = Object.keys(groupedComponents)
+      .filter((type) => priorityTypes.includes(type))
+      .slice(0, 3);
+
+    return (
+      <div className='space-y-2'>
+        {displayTypes.map((type) => (
+          <div key={type} className='mb-1'>
+            <div className='text-sm font-medium text-primary'>{type}:</div>
+            <div className='text-sm text-muted-foreground truncate'>
+              {groupedComponents[type][0].product.name}
+            </div>
+          </div>
+        ))}
+        {Object.keys(groupedComponents).length > 3 && (
+          <div className='text-xs text-muted-foreground mt-1'>
+            ...và {Object.keys(groupedComponents).length - 3} loại linh kiện
+            khác
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderDetailedComponents = (config: ConfigurationRes) => {
     if (!config.component_ids || !Array.isArray(config.component_ids)) {
       return (
         <div className='text-sm text-muted-foreground'>
@@ -151,17 +206,17 @@ export default function ConfigurationsPage() {
     return (
       <div className='space-y-4'>
         <div>
-          <h3 className='text-sm font-medium mb-2'>Danh sách linh kiện:</h3>
+          <h3 className='text-base font-medium mb-2'>Danh sách linh kiện:</h3>
           {Object.entries(groupedComponents).map(([type, components]) => (
-            <div key={type} className='mb-2'>
-              <div className='text-sm font-medium'>{type}</div>
+            <div key={type} className='mb-3 border-l-2 border-primary/20 pl-3'>
+              <div className='text-sm font-medium text-primary'>{type}</div>
               {components.map((component, index) => (
                 <div
                   key={index}
                   className='flex items-center gap-2 text-sm text-muted-foreground pl-2'
                 >
                   <div>{component.product.name}</div>
-                  <div className='text-xs'>
+                  <div className='text-xs font-medium'>
                     ({component.product.price.toLocaleString()}đ)
                   </div>
                 </div>
@@ -171,18 +226,64 @@ export default function ConfigurationsPage() {
         </div>
 
         {config.compatibility_result && (
-          <div>
-            <h3 className='text-sm font-medium mb-2'>
-              Kết quả kiểm tra tương thích:
-            </h3>
-            <div className='space-y-2'>
-              {config.compatibility_result.messages.map((message, index) => (
-                <div key={index} className='text-sm text-muted-foreground'>
-                  {message}
-                </div>
-              ))}
+          <>
+            <Separator />
+            <div>
+              <h3 className='text-base font-medium mb-2'>
+                Kết quả kiểm tra tương thích:
+              </h3>
+              <div className='space-y-2'>
+                {config.compatibility_result.messages.map((message, index) => {
+                  // Phân loại message theo phân loại
+                  let badgeVariant:
+                    | 'default'
+                    | 'secondary'
+                    | 'destructive'
+                    | 'outline' = 'secondary';
+                  let badgeText = '';
+                  let messageClass = '';
+
+                  if (
+                    message.toLowerCase().includes('không tương thích') ||
+                    message.toLowerCase().includes('lỗi') ||
+                    message.toLowerCase().includes('không hỗ trợ')
+                  ) {
+                    badgeVariant = 'destructive';
+                    badgeText = 'Lỗi';
+                    messageClass = 'text-destructive';
+                  } else if (
+                    message.toLowerCase().includes('cảnh báo') ||
+                    message.toLowerCase().includes('lưu ý') ||
+                    message.toLowerCase().includes('chú ý') ||
+                    message.toLowerCase().includes('có thể')
+                  ) {
+                    badgeVariant = 'default';
+                    badgeText = 'Cảnh báo';
+                    messageClass = 'text-rose-400';
+                  } else {
+                    badgeVariant = 'secondary';
+                    badgeText = 'Thông tin';
+                    messageClass = 'text-green-600';
+                  }
+
+                  return (
+                    <div
+                      key={index}
+                      className='flex items-start gap-2 p-1.5 rounded-sm'
+                    >
+                      <Badge
+                        variant={badgeVariant}
+                        className='h-5 min-w-[80px] flex justify-center items-center'
+                      >
+                        {badgeText}
+                      </Badge>
+                      <div className={`text-sm ${messageClass}`}>{message}</div>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
+          </>
         )}
       </div>
     );
@@ -232,7 +333,7 @@ export default function ConfigurationsPage() {
                       </div>
                     </CardHeader>
                     <CardContent className='flex-grow'>
-                      {renderComponents(config)}
+                      {renderComponentsSummary(config)}
                       <div className='mt-4 font-semibold text-right'>
                         Tổng giá: {calculateTotalPrice(config).toLocaleString()}
                         đ
@@ -248,6 +349,29 @@ export default function ConfigurationsPage() {
                         Xóa
                       </Button>
                       <div className='flex gap-2'>
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant='outline' size='sm'>
+                              <Info className='h-4 w-4 mr-2' />
+                              Chi tiết
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className='sm:max-w-[650px] max-h-[90vh]'>
+                            <DialogHeader>
+                              <DialogTitle>{config.name}</DialogTitle>
+                              <DialogDescription>
+                                {config.description}
+                              </DialogDescription>
+                            </DialogHeader>
+                            <div className='py-4 max-h-[60vh] overflow-y-auto pr-4'>
+                              {renderDetailedComponents(config)}
+                              <div className='mt-6 text-right font-semibold text-lg'>
+                                Tổng giá:{' '}
+                                {calculateTotalPrice(config).toLocaleString()}đ
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
                         <Button
                           variant='outline'
                           size='sm'
@@ -308,13 +432,36 @@ export default function ConfigurationsPage() {
                       <CardDescription>{config.description}</CardDescription>
                     </CardHeader>
                     <CardContent className='flex-grow'>
-                      {renderComponents(config)}
+                      {renderComponentsSummary(config)}
                       <div className='mt-4 font-semibold text-right'>
                         Tổng giá: {calculateTotalPrice(config).toLocaleString()}
                         đ
                       </div>
                     </CardContent>
-                    <CardFooter className='flex justify-end'>
+                    <CardFooter className='flex justify-end gap-2'>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button variant='outline' size='sm'>
+                            <Info className='h-4 w-4 mr-2' />
+                            Chi tiết
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent className='sm:max-w-[650px] max-h-[90vh]'>
+                          <DialogHeader>
+                            <DialogTitle>{config.name}</DialogTitle>
+                            <DialogDescription>
+                              {config.description}
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className='py-4 max-h-[60vh] overflow-y-auto pr-4'>
+                            {renderDetailedComponents(config)}
+                            <div className='mt-6 text-right font-semibold text-lg'>
+                              Tổng giá:{' '}
+                              {calculateTotalPrice(config).toLocaleString()}đ
+                            </div>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
                       <Button
                         size='sm'
                         onClick={() =>
@@ -322,7 +469,7 @@ export default function ConfigurationsPage() {
                         }
                       >
                         <Edit className='h-4 w-4 mr-2' />
-                        Xem chi tiết
+                        Xem & Chỉnh sửa
                       </Button>
                     </CardFooter>
                   </Card>

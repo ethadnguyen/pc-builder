@@ -11,7 +11,7 @@ import { PCBuilderDroppable } from './pc-builder-droppable';
 import { PCBuilderDraggable } from './pc-builder-draggable';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { AlertCircle, CheckCircle2, AlertTriangle, Info } from 'lucide-react';
+import { CheckCircle2, ChevronDown, ChevronUp } from 'lucide-react';
 import { getActiveProducts } from '@/services/modules/product.service';
 import { compatibilityService } from '@/services/modules/compatibility.service';
 import { CompatibilityRequest } from '@/services/types/request/compatibility_types/compatibility.req';
@@ -45,6 +45,7 @@ import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Badge } from '@/components/ui/badge';
 import {
   ProductRes,
   ProductType,
@@ -203,7 +204,11 @@ export function PCBuilderComponent() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [isPublic, setIsPublic] = useState(false);
-  const [compatibilityResult, setCompatibilityResult] = useState<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [compatibilityResult, setCompatibilityResult] = useState<{
+    messages: string[];
+    isCompatible: boolean;
+  } | null>(null);
 
   // State cho bộ lọc
   const [brands, setBrands] = useState<BrandRes[]>([]);
@@ -228,6 +233,9 @@ export function PCBuilderComponent() {
   const [currentSlotPage, setCurrentSlotPage] = useState<number>(1);
   const slotsPerPage = 4; // Số lượng slot trên mỗi trang
   const totalSlotPages = Math.ceil(componentTypes.length / slotsPerPage);
+
+  const [showCompatibilityMessages, setShowCompatibilityMessages] =
+    useState<boolean>(true);
 
   // Debounce search term
   useEffect(() => {
@@ -341,7 +349,7 @@ export function PCBuilderComponent() {
   useEffect(() => {
     let newTotalPrice = 0;
 
-    for (const [_, value] of Object.entries(selectedComponents)) {
+    for (const [, value] of Object.entries(selectedComponents)) {
       if (value === null) continue;
 
       if (Array.isArray(value)) {
@@ -526,7 +534,8 @@ export function PCBuilderComponent() {
     }
   };
 
-  // Kiểm tra tương thích sau khi tải cấu hình
+  // Kiểm tra tương thích sau khi tải cấu hình (để sử dụng trong tương lai)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const checkCompatibilityAfterLoading = (components: {
     [key: string]: Component | Component[] | null;
   }) => {
@@ -535,7 +544,7 @@ export function PCBuilderComponent() {
       product_type: ProductType;
     }[] = [];
 
-    Object.entries(components).forEach(([_, component]) => {
+    Object.entries(components).forEach(([, component]) => {
       if (component === null) return;
 
       if (Array.isArray(component)) {
@@ -849,43 +858,98 @@ export function PCBuilderComponent() {
             <h2 className='text-2xl font-bold mb-6'>Xây dựng cấu hình PC</h2>
 
             {compatibilityMessages.length > 0 && (
-              <div className='space-y-3 mb-6 max-h-[300px] overflow-y-auto pr-2'>
-                {compatibilityMessages.map((message, index) => {
-                  // Hiển thị messages với kiểu khác nhau
-                  if (message.type === 'error') {
-                    return (
-                      <Alert key={index} variant='destructive'>
-                        <AlertCircle className='h-4 w-4' />
-                        <AlertTitle>Lỗi tương thích</AlertTitle>
-                        <AlertDescription>{message.text}</AlertDescription>
-                      </Alert>
-                    );
-                  } else if (message.type === 'warning') {
-                    return (
-                      <Alert
-                        key={index}
-                        variant='default'
-                        className='bg-yellow-50 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800'
-                      >
-                        <AlertTriangle className='h-4 w-4 text-yellow-600 dark:text-yellow-400' />
-                        <AlertTitle>Cảnh báo</AlertTitle>
-                        <AlertDescription>{message.text}</AlertDescription>
-                      </Alert>
-                    );
-                  } else {
-                    return (
-                      <Alert
-                        key={index}
-                        variant='default'
-                        className='bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800'
-                      >
-                        <Info className='h-4 w-4 text-blue-600 dark:text-blue-400' />
-                        <AlertTitle>Thông tin</AlertTitle>
-                        <AlertDescription>{message.text}</AlertDescription>
-                      </Alert>
-                    );
+              <div className='mb-6'>
+                <div
+                  className='flex items-center justify-between bg-muted p-2 rounded-t-md cursor-pointer'
+                  onClick={() =>
+                    setShowCompatibilityMessages(!showCompatibilityMessages)
                   }
-                })}
+                >
+                  <span className='font-medium'>
+                    Thông tin tương thích ({compatibilityMessages.length})
+                  </span>
+                  <Button variant='ghost' size='sm' className='h-6 w-6 p-0'>
+                    {showCompatibilityMessages ? (
+                      <ChevronUp className='h-4 w-4' />
+                    ) : (
+                      <ChevronDown className='h-4 w-4' />
+                    )}
+                  </Button>
+                </div>
+
+                {showCompatibilityMessages && (
+                  <div className='space-y-3 max-h-[300px] overflow-y-auto pr-2 pt-2'>
+                    {compatibilityMessages.map((message, index) => {
+                      // Hiển thị messages với kiểu khác nhau
+                      if (message.type === 'error') {
+                        return (
+                          <Alert key={index} variant='destructive'>
+                            <div className='flex items-start gap-2'>
+                              <Badge
+                                variant='destructive'
+                                className='h-5 min-w-[80px] flex justify-center items-center'
+                              >
+                                Lỗi
+                              </Badge>
+                              <div className='flex-1'>
+                                <AlertTitle>Lỗi tương thích</AlertTitle>
+                                <AlertDescription>
+                                  {message.text}
+                                </AlertDescription>
+                              </div>
+                            </div>
+                          </Alert>
+                        );
+                      } else if (message.type === 'warning') {
+                        return (
+                          <Alert
+                            key={index}
+                            variant='default'
+                            className='bg-yellow-50 dark:bg-yellow-950 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800'
+                          >
+                            <div className='flex items-start gap-2'>
+                              <Badge
+                                variant='default'
+                                className='h-5 min-w-[80px] flex justify-center items-center'
+                              >
+                                Cảnh báo
+                              </Badge>
+                              <div className='flex-1'>
+                                <AlertTitle>Cảnh báo</AlertTitle>
+                                <AlertDescription>
+                                  {message.text}
+                                </AlertDescription>
+                              </div>
+                            </div>
+                          </Alert>
+                        );
+                      } else {
+                        return (
+                          <Alert
+                            key={index}
+                            variant='default'
+                            className='bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                          >
+                            <div className='flex items-start gap-2'>
+                              <Badge
+                                variant='secondary'
+                                className='h-5 min-w-[80px] flex justify-center items-center'
+                              >
+                                Thông tin
+                              </Badge>
+                              <div className='flex-1'>
+                                <AlertTitle>Thông tin</AlertTitle>
+                                <AlertDescription>
+                                  {message.text}
+                                </AlertDescription>
+                              </div>
+                            </div>
+                          </Alert>
+                        );
+                      }
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
@@ -895,13 +959,38 @@ export function PCBuilderComponent() {
                   value !== null &&
                   (Array.isArray(value) ? value.length > 0 : true)
               ) && (
-                <Alert className='mb-6 bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800'>
-                  <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400' />
-                  <AlertTitle>Cấu hình tương thích</AlertTitle>
-                  <AlertDescription>
-                    Các linh kiện đã chọn tương thích với nhau.
-                  </AlertDescription>
-                </Alert>
+                <div className='mb-6'>
+                  <div
+                    className='flex items-center justify-between bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-800 p-2 rounded-md cursor-pointer'
+                    onClick={() =>
+                      setShowCompatibilityMessages(!showCompatibilityMessages)
+                    }
+                  >
+                    <div className='flex items-center'>
+                      <CheckCircle2 className='h-4 w-4 text-green-600 dark:text-green-400 mr-2' />
+                      <span className='font-medium'>Cấu hình tương thích</span>
+                    </div>
+                    <Button
+                      variant='ghost'
+                      size='sm'
+                      className='h-6 w-6 p-0 text-green-600'
+                    >
+                      {showCompatibilityMessages ? (
+                        <ChevronUp className='h-4 w-4' />
+                      ) : (
+                        <ChevronDown className='h-4 w-4' />
+                      )}
+                    </Button>
+                  </div>
+
+                  {showCompatibilityMessages && (
+                    <div className='p-4 border border-t-0 border-green-200 dark:border-green-800 rounded-b-md bg-green-50/50 dark:bg-green-950/50'>
+                      <AlertDescription>
+                        Các linh kiện đã chọn tương thích với nhau.
+                      </AlertDescription>
+                    </div>
+                  )}
+                </div>
               )}
 
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
@@ -929,15 +1018,17 @@ export function PCBuilderComponent() {
                         {!isMultiple &&
                         selectedComponentsForType &&
                         !Array.isArray(selectedComponentsForType) ? (
-                          <PCBuilderItem
-                            component={selectedComponentsForType}
-                            onRemove={() => handleRemoveComponent(type.id)}
-                          />
+                          <div className='border border-primary/40 bg-primary/5 rounded-md p-1'>
+                            <PCBuilderItem
+                              component={selectedComponentsForType}
+                              onRemove={() => handleRemoveComponent(type.id)}
+                            />
+                          </div>
                         ) : isMultiple &&
                           Array.isArray(selectedComponentsForType) &&
                           selectedComponentsForType.length > 0 ? (
                           // Hiển thị nhiều thành phần
-                          <div className='space-y-2 max-h-[200px] overflow-y-auto p-2 border rounded-md'>
+                          <div className='space-y-2 max-h-[200px] overflow-y-auto p-2 border border-primary/40 bg-primary/5 rounded-md'>
                             {selectedComponentsForType.map(
                               (component, index) => (
                                 <PCBuilderItem
@@ -957,7 +1048,7 @@ export function PCBuilderComponent() {
                           </div>
                         ) : (
                           // Hiển thị placeholder khi chưa có thành phần nào
-                          <div className='text-muted-foreground text-sm border border-dashed rounded-md p-4 h-full min-h-[80px] flex items-center justify-center'>
+                          <div className='text-muted-foreground text-sm border border-dashed border-muted-foreground/30 rounded-md p-4 h-full min-h-[80px] flex items-center justify-center bg-muted/30 hover:bg-muted/50 transition-colors'>
                             Kéo thả linh kiện vào đây
                           </div>
                         )}

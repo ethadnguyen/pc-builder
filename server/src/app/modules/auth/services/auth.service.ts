@@ -51,6 +51,39 @@ export class AuthService {
     return await this.login(payload);
   }
 
+  async validateAdmin(user: LoginInput) {
+    const userInDb = await this.userRepo.findByEmail(user.email);
+
+    if (!userInDb) {
+      throw new BadRequestException(ErrorMessage.USER_NOT_FOUND);
+    } else {
+      switch (userInDb.status) {
+        case StatusUser.DISABLE:
+          throw new BadRequestException(ErrorMessage.USER_INACTIVE);
+
+        case StatusUser.ENABLE:
+          if (!(await compare(user.password, userInDb.password))) {
+            throw new BadRequestException(ErrorMessage.INCORRECT_USER);
+          }
+          break;
+        default:
+          break;
+      }
+    }
+
+    const isAdmin = userInDb.role.some((role) => role.name === RoleEnum.ADMIN);
+    if (!isAdmin) {
+      throw new ForbiddenException(
+        'Bạn không có quyền truy cập vào trang quản trị',
+      );
+    }
+
+    // Truyền tham số true để đánh dấu đây là phiên đăng nhập admin
+    const payload = this.createPayload(userInDb, true);
+
+    return await this.login(payload);
+  }
+
   async validateOAuthUser(userData: any) {
     const { email, firstName, lastName, picture, provider } = userData;
 
@@ -144,7 +177,7 @@ export class AuthService {
     }
   }
 
-  createPayload(user: User) {
+  createPayload(user: User, isAdminSession = false) {
     const roles = user.role.map((role) => role.name);
     const permissions = user.role
       .flatMap((role) => role.permissions)
@@ -157,6 +190,7 @@ export class AuthService {
       roles,
       permissions,
       user_name: user.user_name,
+      is_admin_session: isAdminSession,
     };
 
     return payload;

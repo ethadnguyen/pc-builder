@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  forwardRef,
+  Inject,
+  Injectable,
+} from '@nestjs/common';
 import { PromotionRepository } from '../repositories/promotion.repositories';
 import { ProductRepository } from '../../products/repositories/products.repositories';
 import { CategoryRepository } from '../../categories/repositories/categories.repositories';
@@ -17,6 +22,7 @@ import { ProductRes } from '../../products/controllers/types/product.res';
 export class PromotionService {
   constructor(
     private readonly promotionRepository: PromotionRepository,
+    @Inject(forwardRef(() => ProductRepository))
     private readonly productRepository: ProductRepository,
     private readonly categoryRepository: CategoryRepository,
   ) {}
@@ -76,47 +82,54 @@ export class PromotionService {
     promotion.is_active = input.is_active;
     promotion.usage_limit = input.usage_limit;
     promotion.used_count = 0;
+    promotion.products = [];
+    promotion.categories = [];
+
+    const hasEmptyProductsAndCategories =
+      (!input.product_ids || input.product_ids.length === 0) &&
+      (!input.category_ids || input.category_ids.length === 0);
 
     let products: Product[] = [];
-    if (input.product_ids) {
+    if (input.product_ids && input.product_ids.length > 0) {
       products = await this.productRepository.findByIds(input.product_ids);
       promotion.products = products;
-
-      // Cập nhật trạng thái giảm giá cho sản phẩm
-      await this.updateProductSaleStatus(products, promotion);
     }
 
-    if (input.category_ids) {
+    if (input.category_ids && input.category_ids.length > 0) {
       const categories = await this.categoryRepository.findByIds(
         input.category_ids,
       );
       promotion.categories = categories;
 
-      // Cập nhật trạng thái is_sale cho các danh mục
       const isActive = this.isPromotionActive(promotion);
       for (const category of categories) {
         category.is_sale = isActive;
         await this.categoryRepository.update(category);
       }
-
-      // Nếu có danh mục, lấy tất cả sản phẩm thuộc danh mục đó và cập nhật
-      if (categories.length > 0) {
-        const productsInCategories =
-          await this.productRepository.findByCategories(
-            categories.map((cat) => cat.id),
-          );
-        // Loại bỏ các sản phẩm đã được thêm trực tiếp để tránh trùng lặp
-        const uniqueProducts = productsInCategories.filter(
-          (p) => !products.some((existingP) => existingP.id === p.id),
-        );
-        await this.updateProductSaleStatus(
-          [...products, ...uniqueProducts],
-          promotion,
-        );
-      }
     }
 
-    return await this.promotionRepository.create(promotion);
+    const savedPromotion = await this.promotionRepository.create(promotion);
+
+    if (products.length > 0) {
+      await this.updateProductSaleStatus(products, savedPromotion);
+    }
+
+    if (promotion.categories && promotion.categories.length > 0) {
+      const productsInCategories =
+        await this.productRepository.findByCategories(
+          promotion.categories.map((cat) => cat.id),
+        );
+      const uniqueProducts = productsInCategories.filter(
+        (p) => !products.some((existingP) => existingP.id === p.id),
+      );
+      await this.updateProductSaleStatus(uniqueProducts, savedPromotion);
+    }
+
+    if (hasEmptyProductsAndCategories) {
+      await this.updateProductSaleStatus([], savedPromotion);
+    }
+
+    return await this.promotionRepository.findById(savedPromotion.id);
   }
 
   async updatePromotion(input: UpdatePromotionInput) {
@@ -144,25 +157,36 @@ export class PromotionService {
       used_count: input.used_count,
     });
 
+    // Kiểm tra nếu input truyền vào mảng rỗng cho cả product_ids và category_ids
+    // thì đó là trường hợp áp dụng cho tất cả sản phẩm
+    const hasEmptyProductsAndCategories =
+      (!input.product_ids || input.product_ids.length === 0) &&
+      (!input.category_ids || input.category_ids.length === 0);
+
     let newProducts: Product[] = [];
-    if (input.product_ids) {
+    // Nếu có product_ids được chọn
+    if (input.product_ids && input.product_ids.length > 0) {
       newProducts = await this.productRepository.findByIds(input.product_ids);
       promotion.products = newProducts;
+    } else {
+      promotion.products = [];
     }
 
     let newCategories: Category[] = [];
-    if (input.category_ids) {
+    // Nếu có category_ids được chọn
+    if (input.category_ids && input.category_ids.length > 0) {
       newCategories = await this.categoryRepository.findByIds(
         input.category_ids,
       );
       promotion.categories = newCategories;
 
-      // Cập nhật trạng thái is_sale cho các danh mục mới
       const isActive = this.isPromotionActive(promotion);
       for (const category of newCategories) {
         category.is_sale = isActive;
         await this.categoryRepository.update(category);
       }
+    } else {
+      promotion.categories = [];
     }
 
     const updatedPromotion = await this.promotionRepository.save(promotion);
@@ -174,23 +198,29 @@ export class PromotionService {
       newCategories,
     );
 
-    // Cập nhật trạng thái giảm giá cho các sản phẩm mới
-    await this.updateProductSaleStatus(newProducts, promotion);
+    // Nếu có sản phẩm mới được chỉ định, cập nhật chúng
+    if (newProducts.length > 0) {
+      await this.updateProductSaleStatus(newProducts, promotion);
+    }
 
-    // Nếu có danh mục, cập nhật tất cả sản phẩm thuộc danh mục đó
+    // Nếu có danh mục mới, cập nhật sản phẩm trong danh mục đó
     if (newCategories.length > 0) {
       const productsInCategories =
         await this.productRepository.findByCategories(
           newCategories.map((cat) => cat.id),
         );
-      // Loại bỏ các sản phẩm đã được thêm trực tiếp để tránh trùng lặp
       const uniqueProducts = productsInCategories.filter(
         (p) => !newProducts.some((existingP) => existingP.id === p.id),
       );
       await this.updateProductSaleStatus(uniqueProducts, promotion);
     }
 
-    return updatedPromotion;
+    // Nếu không có danh mục và sản phẩm mới được chỉ định, khuyến mãi áp dụng cho tất cả sản phẩm
+    if (hasEmptyProductsAndCategories) {
+      await this.updateProductSaleStatus([], promotion);
+    }
+
+    return await this.promotionRepository.findById(updatedPromotion.id);
   }
 
   async calculateDiscount(
@@ -250,8 +280,8 @@ export class PromotionService {
   async deletePromotion(id: number): Promise<void> {
     const promotion = await this.promotionRepository.findById(id);
     if (promotion) {
-      // Reset trạng thái giảm giá cho tất cả sản phẩm trong promotion
-      const products = [...(promotion.products || [])];
+      // Thu thập tất cả sản phẩm bị ảnh hưởng
+      const affectedProducts = [...(promotion.products || [])];
 
       // Reset trạng thái giảm giá cho các danh mục trong promotion
       if (promotion.categories && promotion.categories.length > 0) {
@@ -267,15 +297,31 @@ export class PromotionService {
           );
         // Loại bỏ các sản phẩm đã được thêm trực tiếp để tránh trùng lặp
         const uniqueProducts = productsInCategories.filter(
-          (p) => !products.some((existingP) => existingP.id === p.id),
+          (p) => !affectedProducts.some((existingP) => existingP.id === p.id),
         );
-        products.push(...uniqueProducts);
+        affectedProducts.push(...uniqueProducts);
       }
 
-      // Reset trạng thái giảm giá cho sản phẩm
-      for (const product of products) {
-        product.is_sale = false;
-        product.sale_price = 0;
+      // Xử lý từng sản phẩm bị ảnh hưởng
+      for (const product of affectedProducts) {
+        // Lấy tất cả các khuyến mãi đang áp dụng cho sản phẩm (trừ khuyến mãi đang xóa)
+        const activePromotions =
+          await this.promotionRepository.findActivePromotionsForProduct(
+            product.id,
+          );
+        const otherPromotions = activePromotions.filter(
+          (p) => p.id !== promotion.id,
+        );
+
+        if (otherPromotions.length === 0) {
+          // Nếu không còn khuyến mãi nào khác, reset trạng thái sale
+          product.is_sale = false;
+          product.sale_price = 0;
+        } else {
+          // Nếu còn khuyến mãi khác, tính toán lại giá khuyến mãi tốt nhất
+          await this.recalculateBestPromotion(product, otherPromotions);
+        }
+
         await this.productRepository.update(product);
       }
     }
@@ -306,6 +352,13 @@ export class PromotionService {
     promotion: Promotion,
     products: { product: Product; quantity: number }[],
   ): { product: Product; quantity: number }[] {
+    if (
+      (!promotion.products || promotion.products.length === 0) &&
+      (!promotion.categories || promotion.categories.length === 0)
+    ) {
+      return products;
+    }
+
     return products.filter((item) => {
       const productInPromotion = promotion.products?.some(
         (p) => p.id === item.product.id,
@@ -351,45 +404,179 @@ export class PromotionService {
     products: Product[],
     promotion: Promotion,
   ): Promise<void> {
+    if (
+      (!products || products.length === 0) &&
+      (!promotion.products || promotion.products.length === 0) &&
+      (!promotion.categories || promotion.categories.length === 0)
+    ) {
+      const allProducts = await this.productRepository.findAll(
+        { skip: 0, take: 1000 },
+        undefined,
+        true,
+      );
+
+      const [categoriesData] = await this.categoryRepository.findAll({
+        take: 1000,
+        skip: 0,
+      });
+
+      if (categoriesData && categoriesData.length > 0) {
+        const fullPromotion = await this.promotionRepository.findById(
+          promotion.id,
+        );
+        const isPromotionActive = this.isPromotionActive(promotion);
+
+        fullPromotion.categories = categoriesData;
+
+        for (const category of categoriesData) {
+          category.is_sale = isPromotionActive;
+          await this.categoryRepository.update(category);
+        }
+
+        await this.promotionRepository.save(fullPromotion);
+      }
+
+      if (allProducts[0] && allProducts[0].length > 0) {
+        await this.updateProductSaleStatus(allProducts[0], promotion);
+      }
+      return;
+    }
+
     if (!products || products.length === 0) {
       return;
     }
 
     const isPromotionActive = this.isPromotionActive(promotion);
 
-    if (!isPromotionActive) {
-      for (const product of products) {
-        product.is_sale = false;
-        product.sale_price = 0;
-        await this.productRepository.update(product);
+    // Lấy promotion đầy đủ với danh sách products
+    const fullPromotion = await this.promotionRepository.findById(promotion.id);
+    const currentProductIds = fullPromotion?.products?.map((p) => p.id) || [];
+
+    for (const product of products) {
+      // Kiểm tra xem sản phẩm đã có trong danh sách products của promotion chưa
+      const isProductInPromotion = currentProductIds.includes(product.id);
+
+      // Cập nhật mối quan hệ giữa product và promotion
+      if (!isProductInPromotion && isPromotionActive) {
+        // Thêm sản phẩm vào khuyến mãi
+        if (!fullPromotion.products) {
+          fullPromotion.products = [];
+        }
+        fullPromotion.products.push(product);
+      } else if (isProductInPromotion && !isPromotionActive) {
+        // Loại bỏ sản phẩm khỏi khuyến mãi
+        fullPromotion.products = fullPromotion.products.filter(
+          (p) => p.id !== product.id,
+        );
       }
+
+      // Cập nhật trạng thái giảm giá của sản phẩm
+      if (!isPromotionActive) {
+        const productPromotions =
+          await this.promotionRepository.findActivePromotionsForProduct(
+            product.id,
+          );
+        const otherPromotions = productPromotions.filter(
+          (p) => p.id !== promotion.id,
+        );
+
+        if (otherPromotions.length === 0) {
+          product.is_sale = false;
+          product.sale_price = 0;
+        } else {
+          await this.recalculateBestPromotion(product, otherPromotions);
+        }
+      } else {
+        const productPromotions =
+          await this.promotionRepository.findActivePromotionsForProduct(
+            product.id,
+          );
+
+        // Đảm bảo promotion hiện tại có trong danh sách
+        if (!productPromotions.some((p) => p.id === promotion.id)) {
+          productPromotions.push(promotion);
+        }
+
+        await this.recalculateBestPromotion(product, productPromotions);
+      }
+
+      // Cập nhật sản phẩm
+      await this.productRepository.update(product);
+    }
+
+    // Lưu khuyến mãi để cập nhật mối quan hệ
+    if (isPromotionActive) {
+      await this.promotionRepository.save(fullPromotion);
+    }
+  }
+
+  private async recalculateBestPromotion(
+    product: Product,
+    promotions: Promotion[],
+  ): Promise<void> {
+    if (!promotions || promotions.length === 0) {
+      product.is_sale = false;
+      product.sale_price = 0;
       return;
     }
 
-    if (isPromotionActive) {
-      for (const product of products) {
-        let salePrice = product.price;
+    // Tách các khuyến mãi theo loại
+    const percentagePromotions = promotions.filter(
+      (p) => p.discount_type === DiscountType.PERCENTAGE,
+    );
+    const fixedPromotions = promotions.filter(
+      (p) => p.discount_type === DiscountType.FIXED,
+    );
 
-        if (promotion.discount_type === DiscountType.PERCENTAGE) {
-          salePrice =
-            product.price - (product.price * promotion.discount_value) / 100;
-          if (
-            promotion.maximum_discount_amount &&
-            product.price - salePrice > promotion.maximum_discount_amount
-          ) {
-            salePrice = product.price - promotion.maximum_discount_amount;
-          }
-        } else if (promotion.discount_type === DiscountType.FIXED) {
-          salePrice = product.price - promotion.discount_value;
-          if (salePrice < 0) salePrice = 0;
-        }
+    // Giá gốc của sản phẩm
+    const originalPrice = product.price;
+    let currentPrice = originalPrice;
 
-        salePrice = Math.round(salePrice);
+    // Áp dụng khuyến mãi phần trăm (chỉ áp dụng khuyến mãi phần trăm cao nhất)
+    if (percentagePromotions.length > 0) {
+      // Sắp xếp theo phần trăm giảm giá từ cao xuống thấp
+      percentagePromotions.sort((a, b) => b.discount_value - a.discount_value);
+      const bestPercentagePromotion = percentagePromotions[0];
 
-        product.is_sale = true;
-        product.sale_price = salePrice;
-        await this.productRepository.update(product);
+      // Tính số tiền giảm theo phần trăm dựa trên giá gốc
+      let percentageDiscount =
+        (originalPrice * bestPercentagePromotion.discount_value) / 100;
+
+      // Áp dụng giới hạn giảm giá tối đa nếu có
+      if (
+        bestPercentagePromotion.maximum_discount_amount &&
+        percentageDiscount > bestPercentagePromotion.maximum_discount_amount
+      ) {
+        percentageDiscount = bestPercentagePromotion.maximum_discount_amount;
       }
+
+      // Áp dụng giảm giá phần trăm vào giá hiện tại
+      currentPrice = originalPrice - percentageDiscount;
+    }
+
+    // Tiếp tục áp dụng tất cả các khuyến mãi cố định vào giá đã giảm
+    if (fixedPromotions.length > 0) {
+      // Tính tổng giảm giá cố định từ tất cả khuyến mãi
+      const totalFixedDiscount = fixedPromotions.reduce(
+        (sum, promo) => sum + promo.discount_value,
+        0,
+      );
+
+      // Áp dụng giảm giá cố định vào giá hiện tại
+      currentPrice = currentPrice - totalFixedDiscount;
+    }
+
+    // Đảm bảo giá không âm và làm tròn
+    currentPrice = Math.max(0, currentPrice);
+    currentPrice = Math.round(currentPrice);
+
+    // Cập nhật thông tin giảm giá cho sản phẩm
+    if (currentPrice < originalPrice) {
+      product.is_sale = true;
+      product.sale_price = currentPrice;
+    } else {
+      product.is_sale = false;
+      product.sale_price = 0;
     }
   }
 
@@ -407,16 +594,12 @@ export class PromotionService {
       (oldC) => !newCategories.some((newC) => newC.id === oldC.id),
     );
 
-    for (const product of removedProducts) {
-      product.is_sale = false;
-      product.sale_price = 0;
-      await this.productRepository.update(product);
-    }
-
     for (const category of removedCategories) {
       category.is_sale = false;
       await this.categoryRepository.update(category);
     }
+
+    const productsToProcess = [...removedProducts];
 
     if (removedCategories.length > 0) {
       const productsInRemovedCategories =
@@ -425,14 +608,26 @@ export class PromotionService {
         );
 
       const uniqueProducts = productsInRemovedCategories.filter(
-        (p) => !newProducts.some((newP) => newP.id === p.id),
+        (p) => !productsToProcess.some((existingP) => existingP.id === p.id),
       );
 
-      for (const product of uniqueProducts) {
+      productsToProcess.push(...uniqueProducts);
+    }
+
+    for (const product of productsToProcess) {
+      const activePromotions =
+        await this.promotionRepository.findActivePromotionsForProduct(
+          product.id,
+        );
+
+      if (activePromotions.length === 0) {
         product.is_sale = false;
         product.sale_price = 0;
-        await this.productRepository.update(product);
+      } else {
+        await this.recalculateBestPromotion(product, activePromotions);
       }
+
+      await this.productRepository.update(product);
     }
   }
 
@@ -455,15 +650,151 @@ export class PromotionService {
     ) {
       promotion.is_active = false;
 
+      // Cập nhật trạng thái danh mục
       if (promotion.categories && promotion.categories.length > 0) {
         for (const category of promotion.categories) {
-          category.is_sale = false;
-          await this.categoryRepository.update(category);
+          // Kiểm tra xem danh mục còn khuyến mãi nào khác không
+          const otherPromotions = await this.promotionRepository.findAll(
+            { skip: 0, take: 10 },
+            undefined,
+            undefined,
+            category.id,
+          );
+
+          const hasActivePromotions = otherPromotions[0].some(
+            (p) => p.id !== promotion.id && this.isPromotionActive(p),
+          );
+
+          if (!hasActivePromotions) {
+            category.is_sale = false;
+            await this.categoryRepository.update(category);
+          }
+        }
+      }
+
+      // Xử lý sản phẩm bị ảnh hưởng
+      await this.handleInactivePromotion(promotion);
+    }
+
+    return await this.promotionRepository.save(promotion);
+  }
+
+  async decrementUsedCount(promotionId: number): Promise<Promotion> {
+    const promotion = await this.promotionRepository.findById(promotionId);
+
+    if (!promotion) {
+      throw new BadRequestException(ErrorMessage.PROMOTION_NOT_FOUND);
+    }
+
+    // Giảm số lần sử dụng, nhưng không để âm
+    if (promotion.used_count > 0) {
+      promotion.used_count -= 1;
+    }
+
+    // Nếu khuyến mãi không hoạt động do đã đạt giới hạn, kiểm tra lại và kích hoạt nếu có thể
+    if (
+      !promotion.is_active &&
+      promotion.usage_limit &&
+      promotion.used_count < promotion.usage_limit
+    ) {
+      // Kiểm tra xem khuyến mãi còn trong thời gian hiệu lực không
+      const now = new Date();
+      if (
+        now >= new Date(promotion.start_date) &&
+        now <= new Date(promotion.end_date)
+      ) {
+        promotion.is_active = true;
+
+        // Cập nhật trạng thái is_sale cho các danh mục
+        if (promotion.categories && promotion.categories.length > 0) {
+          for (const category of promotion.categories) {
+            category.is_sale = true;
+            await this.categoryRepository.update(category);
+          }
+        }
+
+        // Thu thập tất cả sản phẩm bị ảnh hưởng
+        const affectedProducts = [...(promotion.products || [])];
+
+        // Lấy sản phẩm từ danh mục
+        if (promotion.categories && promotion.categories.length > 0) {
+          const productsInCategories =
+            await this.productRepository.findByCategories(
+              promotion.categories.map((cat) => cat.id),
+            );
+
+          // Loại bỏ các sản phẩm đã được thêm trực tiếp để tránh trùng lặp
+          const uniqueProducts = productsInCategories.filter(
+            (p) =>
+              !promotion.products?.some((existingP) => existingP.id === p.id),
+          );
+
+          affectedProducts.push(...uniqueProducts);
+        }
+
+        // Xử lý từng sản phẩm
+        for (const product of affectedProducts) {
+          // Lấy tất cả các khuyến mãi đang áp dụng cho sản phẩm (bao gồm khuyến mãi vừa kích hoạt)
+          const activePromotions =
+            await this.promotionRepository.findActivePromotionsForProduct(
+              product.id,
+            );
+
+          if (!activePromotions.some((p) => p.id === promotion.id)) {
+            activePromotions.push(promotion);
+          }
+
+          await this.recalculateBestPromotion(product, activePromotions);
+          await this.productRepository.update(product);
         }
       }
     }
 
     return await this.promotionRepository.save(promotion);
+  }
+
+  // Phương thức xử lý khi khuyến mãi trở thành không hoạt động
+  private async handleInactivePromotion(promotion: Promotion): Promise<void> {
+    // Thu thập tất cả sản phẩm bị ảnh hưởng
+    const affectedProducts = [...(promotion.products || [])];
+
+    // Lấy sản phẩm từ danh mục
+    if (promotion.categories && promotion.categories.length > 0) {
+      const productsInCategories =
+        await this.productRepository.findByCategories(
+          promotion.categories.map((cat) => cat.id),
+        );
+
+      // Loại bỏ các sản phẩm đã được thêm trực tiếp để tránh trùng lặp
+      const uniqueProducts = productsInCategories.filter(
+        (p) => !promotion.products?.some((existingP) => existingP.id === p.id),
+      );
+
+      affectedProducts.push(...uniqueProducts);
+    }
+
+    // Xử lý từng sản phẩm
+    for (const product of affectedProducts) {
+      // Lấy tất cả các khuyến mãi đang áp dụng cho sản phẩm (trừ khuyến mãi không hoạt động)
+      const activePromotions =
+        await this.promotionRepository.findActivePromotionsForProduct(
+          product.id,
+        );
+      const otherPromotions = activePromotions.filter(
+        (p) => p.id !== promotion.id,
+      );
+
+      if (otherPromotions.length === 0) {
+        // Nếu không còn khuyến mãi nào khác, reset trạng thái sale
+        product.is_sale = false;
+        product.sale_price = 0;
+      } else {
+        // Nếu còn khuyến mãi khác, tính toán lại giá khuyến mãi tốt nhất
+        await this.recalculateBestPromotion(product, otherPromotions);
+      }
+
+      await this.productRepository.update(product);
+    }
   }
 
   async checkExpiringPromotions() {

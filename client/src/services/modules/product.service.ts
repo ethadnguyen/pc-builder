@@ -8,6 +8,18 @@ interface ProductParams {
   search?: string;
 }
 
+interface SearchProductParams {
+  name?: string;
+  description?: string;
+  min_price?: number;
+  max_price?: number;
+  is_sale?: boolean;
+  brand?: string;
+  category?: string;
+  page?: number;
+  size?: number;
+}
+
 export const getActiveProducts = async (params?: ProductParams) => {
   const res = await get('/products/all', params);
   return res.data;
@@ -73,5 +85,10 @@ export const fetchCoolingDetails = async (id: number) => {
 
 export const fetchCaseDetails = async (id: number) => {
   const res = await get(`/case/${id}`);
+  return res.data;
+};
+
+export const searchProducts = async (params: SearchProductParams) => {
+  const res = await get('/products/search', params);
   return res.data;
 };

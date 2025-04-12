@@ -1,12 +1,8 @@
-import type React from 'react';
 import './globals.css';
 import type { Metadata } from 'next';
 
-import { SidebarProvider } from '@/components/ui/sidebar';
-import { AdminSidebar } from '@/components/menu/admin-sidebar';
-import AdminHeader from '@/components/custom/admin-header';
-import { Toaster } from '@/components/ui/sonner';
-import { NotificationProvider } from '@/hooks/use-notification';
+import { AuthProvider } from '@/hooks/use-auth';
+import { ClientLayout } from '@/components/layout/client-layout';
 
 export const metadata: Metadata = {
   title: 'Admin Dashboard',
@@ -21,16 +17,9 @@ export default function RootLayout({
   return (
     <html lang='vi'>
       <body>
-        <NotificationProvider>
-          <SidebarProvider className='w-full'>
-            <AdminSidebar />
-            <div className='w-full'>
-              <AdminHeader />
-              {children}
-              <Toaster />
-            </div>
-          </SidebarProvider>
-        </NotificationProvider>
+        <AuthProvider>
+          <ClientLayout>{children}</ClientLayout>
+        </AuthProvider>
       </body>
     </html>
   );

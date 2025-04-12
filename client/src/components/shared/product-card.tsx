@@ -114,15 +114,15 @@ export function ProductCard({
             {is_sale && sale_price > 0 ? (
               <>
                 <span className='font-medium text-card-foreground'>
-                  {formatPrice(sale_price)}đ
+                  {formatPrice(sale_price)}₫
                 </span>
                 <span className='ml-2 text-sm text-muted-foreground line-through'>
-                  {formatPrice(price)}đ
+                  {formatPrice(price)}₫
                 </span>
               </>
             ) : (
               <span className='font-medium text-card-foreground'>
-                {formatPrice(price)}đ
+                {formatPrice(price)}₫
               </span>
             )}
           </div>

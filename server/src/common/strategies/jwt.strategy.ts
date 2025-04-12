@@ -29,6 +29,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token has been invalidated');
     }
 
+    if (req.url?.includes('/admin') && !payload.is_admin_session) {
+      throw new UnauthorizedException(
+        'Bạn không có quyền truy cập vào trang quản trị',
+      );
+    }
+
     return payload;
   }
 }
